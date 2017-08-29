@@ -145,14 +145,15 @@ test_sdi12 (void)
 
       int delay;
       int meas;
-      if (sdi12dr.start_measurement (sensor_addr, delay, meas) == false)
+      if (sdi12dr.start_measurement (sensor_addr, false, 0, true, delay, meas)
+          == false)
         {
           trace::printf ("Failed to start a measurement\n");
           break;
         }
       trace::printf ("Expect %d values after %d seconds\n", meas, delay);
 
-      if (sdi12dr.wait_for_service_request (delay) == false)
+      if (sdi12dr.wait_for_service_request (sensor_addr, delay) == false)
         {
           trace::printf ("Error waiting for the sensor\n");
           break;
