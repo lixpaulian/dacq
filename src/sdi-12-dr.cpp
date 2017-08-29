@@ -177,29 +177,38 @@ sdi12_dr::change_address (char addr, char new_addr)
 }
 
 bool
-sdi12_dr::start_measurement (char addr, int& response_delay, int& measurements)
+sdi12_dr::start_measurement (char addr, bool concurrent, uint8_t index,
+                             bool use_crc, int& response_delay,
+                             int& measurements)
 {
   bool result = false;
   char buff[32];
+  int count;
 
-  buff[0] = addr;
-  buff[1] = 'M';
-  buff[2] = '!';
-  buff[3] = '\0';
-
-  if (transaction (buff, sizeof(buff)) > 5) // we need at least delay and meas'ments
+  if (index < 10)
     {
-      measurements = buff[4] - 0x30;
-      buff[4] = '\0';
-      response_delay = atoi (&buff[1]);
-      result = true;
-    }
+      buff[0] = addr;
+      buff[1] = concurrent ? 'C' : 'M';
+      buff[2] = use_crc ? 'C' : index ? index + 0x30 : '!';
+      buff[3] = use_crc ? (index ? index + 0x30 : '!') : '\0';
+      buff[4] = (use_crc && index) ? '!' : '\0';
+      buff[5] = '\0';
 
+      count = transaction (buff, sizeof(buff));
+      if (count > 6) // we need at least the delay and the number of meas'ments
+        {
+          buff[count - 2] = '\0';
+          measurements = atoi (&buff[4]);
+          buff[4] = '\0';
+          response_delay = atoi (&buff[1]);
+          result = true;
+        }
+    }
   return result;
 }
 
 bool
-sdi12_dr::wait_for_service_request (int response_delay)
+sdi12_dr::wait_for_service_request (char addr, int response_delay)
 {
   bool result = false;
   char buff[4];
@@ -222,6 +231,11 @@ sdi12_dr::wait_for_service_request (int response_delay)
               res = tty_->read (buff, sizeof(buff));
             }
           while (response_delay-- && res == 0);
+          if (res > 0 && addr == buff[0])
+            {
+              last_sdi_time_ = os::rtos::sysclock.now ();
+              last_sdi_addr_ = addr;
+            }
           result = true;
         }
 

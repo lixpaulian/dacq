@@ -60,10 +60,11 @@ public:
   change_address (char addr, char new_addr);
 
   bool
-  start_measurement (char addr, int& response_delay, int& measurements);
+  start_measurement (char addr, bool concurrent, uint8_t index, bool use_crc,
+                     int& response_delay, int& measurements);
 
   bool
-  wait_for_service_request (int response_delay);
+  wait_for_service_request (char addr, int response_delay);
 
   // --------------------------------------------------------------------
 
