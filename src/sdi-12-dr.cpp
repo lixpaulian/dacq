@@ -60,13 +60,18 @@ sdi12_dr::~sdi12_dr ()
   trace::printf ("%s() %p\n", __func__, this);
 }
 
-int
+bool
 sdi12_dr::open (void)
 {
-  int result = -1;
+  bool result = false;
 
   do
     {
+      if (tty_)
+        {
+          break;        // already in use
+        }
+
       tty_ = static_cast<os::posix::tty*> (os::posix::open (name_, 0));
       if (tty_ == nullptr)
         {
@@ -87,12 +92,9 @@ sdi12_dr::open (void)
 
       if (tty_->tcsetattr (TCSANOW, &tio) < 0)
         {
-          result = -1;
+          break;
         }
-      else
-        {
-          result = 0;
-        }
+      result = true;
     }
   while (0);
 
@@ -116,6 +118,7 @@ sdi12_dr::ack_active (char addr)
   buff[1] = '!';
   buff[2] = '\0';
 
+  mutex_.lock ();
   if (transaction (buff, sizeof(buff)) == 3)
     {
       if (buff[0] == addr && buff[1] == '\r' && buff[2] == '\n')
@@ -123,6 +126,8 @@ sdi12_dr::ack_active (char addr)
           result = true;
         }
     }
+  mutex_.unlock ();
+
   return result;
 }
 
@@ -138,6 +143,7 @@ sdi12_dr::send_id (char addr, char* id, size_t id_len)
       id[2] = '!';
       id[3] = '\0';
 
+      mutex_.lock ();
       if (transaction (id, id_len) > 0)
         {
           if (id[0] == addr)
@@ -150,6 +156,7 @@ sdi12_dr::send_id (char addr, char* id, size_t id_len)
                 }
             }
         }
+      mutex_.unlock ();
     }
   return result;
 }
@@ -166,6 +173,7 @@ sdi12_dr::change_address (char addr, char new_addr)
   buff[3] = '!';
   buff[4] = '\0';
 
+  mutex_.lock ();
   if (transaction (buff, sizeof(buff)) == 3)
     {
       if (buff[0] == new_addr)
@@ -173,12 +181,14 @@ sdi12_dr::change_address (char addr, char new_addr)
           result = true;
         }
     }
+  mutex_.unlock ();
+
   return result;
 }
 
 bool
-sdi12_dr::start_measurement (char addr, bool concurrent, uint8_t index,
-                             bool use_crc, int& response_delay,
+sdi12_dr::start_measurement (char addr, bool use_crc, bool concurrent,
+                             uint8_t index, int& response_delay,
                              int& measurements)
 {
   bool result = false;
@@ -249,21 +259,79 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
   return result;
 }
 
+bool
+sdi12_dr::send_data (char addr, bool use_crc, float* data, int& measurements)
+{
+  bool result = false;
+  char buff[SDI12_LONGEST_FRAME];
+  char request = '0';
+  int parsed = 0, count;
+
+  do
+    {
+      buff[0] = addr;
+      buff[1] = 'D';
+      buff[2] = request;
+      buff[3] = '!';
+      buff[4] = '\0';
+      count = transaction (buff, sizeof(buff));
+
+      if (count > 0 && addr == buff[0])
+        {
+          if (use_crc)
+            {
+              char* p = buff + count - 5;  // p points on the first CRC byte
+              uint16_t incoming_crc = (*p++ & 0x3F) << 12;
+              incoming_crc += (*p++ & 0x3F) << 6;
+              incoming_crc += (*p & 0x3F);
+              if (incoming_crc
+                  != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
+                {
+                  break;
+                }
+            }
+
+          char *p, *r = buff + 1; // skip address
+          buff[count - (use_crc ? 5 : 2)] = '\0'; // terminate string
+          do
+            {
+              p = r;
+              data[parsed] = strtof (p, &r);
+              if (data[parsed] == 0 && p == r)
+                {
+                  break;    // no conversion possible, exit
+                }
+              parsed++;
+            }
+          while (*r != '\0' && parsed < measurements);
+        }
+    }
+  while (request++ < '9' && count > 0 && parsed < measurements);
+
+  if (parsed)
+    {
+      measurements = parsed;
+      result = true;
+    }
+
+  return result;
+}
+
 // -------------------------------------------------------------------------
 
 int
 sdi12_dr::transaction (char* buff, size_t buff_len)
 {
   int result = 0;
-
   int retries_with_break = 3;
+  char response[SDI12_LONGEST_FRAME];
+
   do
     {
       // check if we need to send a break
       if (last_sdi_addr_ != buff[0]
           || (os::rtos::sysclock.now () - last_sdi_time_) > 80)
         {
-          trace::printf ("break\n");
           // send a break at least 12 ms long
           tty_->tcsendbreak (SDI_BREAK_LEN);
         }
@@ -273,6 +341,7 @@ sdi12_dr::transaction (char* buff, size_t buff_len)
       rtos::sysclock.sleep_for (10);
 
       int retries = 3;
+      bool valid_sdi12 = false;
       do
         {
           // send request
@@ -285,19 +354,57 @@ sdi12_dr::transaction (char* buff, size_t buff_len)
           last_sdi_time_ = os::rtos::sysclock.now ();
 
           // read response, if any
-          result = tty_->read (buff, buff_len);
-        }
-      while (result <= 0 && --retries);
+          result = tty_->read (response, sizeof(response));
 
-      if (result > 0)
+          // check if the frame is valid
+          if (result > 0 && response[result - 1] == '\n'
+              && response[result - 2] == '\r')
+            {
+              valid_sdi12 = true;
+            }
+        }
+      while (valid_sdi12 == false && --retries);
+
+      if (valid_sdi12)
         {
+          strncpy (buff, response, buff_len);
           last_sdi_time_ = os::rtos::sysclock.now ();
           break;
+        }
+      else
+        {
+          // wait a little before a break and new triplet sequence
+          rtos::sysclock.sleep_for (10);
+
+          // force a break, even if the timeout did not expire
+          last_sdi_time_ = 0;
         }
     }
   while (--retries_with_break);
 
   return result;
+}
+
+uint16_t
+sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
+{
+
+  for (uint16_t count = 0; count < buff_len; count++)
+    {
+      initial ^= *buff++;
+      int cnt_byte = 8;
+      while (cnt_byte-- > 0)
+        {
+          if (initial & 1)
+            {
+              initial >>= 1;
+              initial ^= 0xA001;
+            }
+          else
+            initial >>= 1;
+        }
+    }
+  return initial;
 }
 
 #pragma GCC diagnostic pop
