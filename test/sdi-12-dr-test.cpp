@@ -114,7 +114,7 @@ test_sdi12 (void)
 
   do
     {
-      if (sdi12dr.open () < 0)
+      if (sdi12dr.open () == false)
         {
           trace::printf ("Could not open sdi12 port\n", sensor_addr);
           break;
@@ -145,7 +145,7 @@ test_sdi12 (void)
 
       int delay;
       int meas;
-      if (sdi12dr.start_measurement (sensor_addr, false, 0, true, delay, meas)
+      if (sdi12dr.start_measurement (sensor_addr, false, false, 0, delay, meas)
           == false)
         {
           trace::printf ("Failed to start a measurement\n");
@@ -158,6 +158,19 @@ test_sdi12 (void)
           trace::printf ("Error waiting for the sensor\n");
           break;
         }
+
+      float data[20];
+      if (sdi12dr.send_data(sensor_addr, false, data, meas) == false)
+        {
+          trace::printf ("Error retrieving the data from sensor\n");
+          break;
+        }
+      trace::printf ("Got %d values from sensor\n", meas);
+      for (int i = 0; i < meas; i++)
+        {
+          trace::printf("%f, ", data[i]);
+        }
+      trace::printf ("\n");
 
       if (sdi12dr.change_address (sensor_addr, '0') == false)
         {
