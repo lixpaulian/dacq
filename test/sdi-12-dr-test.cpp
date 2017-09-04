@@ -57,11 +57,11 @@ os::posix::file_descriptors_manager descriptors_manager
 
 #define TX_BUFFER_SIZE 200
 #define RX_BUFFER_SIZE 200
-#define SDI_BUFF_SIZE 80
+#define SDI_BUFF_SIZE 84
 
 sdi12_uart uart1
   { "uart1", &huart1, nullptr, nullptr, TX_BUFFER_SIZE, RX_BUFFER_SIZE, true,
-      0x80000000 };
+      driver::uart::RS485_DE_POLARITY_MASK };
 
 void
 HAL_UART_TxCpltCallback (UART_HandleTypeDef *huart)
@@ -109,11 +109,12 @@ void
 test_sdi12 (void)
 {
   char buff[100];
-  int result = -1;
+  bool result = false;
   char sensor_addr = '0';
 
   do
     {
+      // open sdi12 port
       if (sdi12dr.open () == false)
         {
           trace::printf ("Could not open sdi12 port\n", sensor_addr);
@@ -121,6 +122,7 @@ test_sdi12 (void)
         }
       trace::printf ("sdi12 port opened\n", sensor_addr);
 
+      // send acknowledge active command (a!)
       if (sdi12dr.ack_active (sensor_addr) == false)
         {
           trace::printf ("Sensor %c not responding\n", sensor_addr);
@@ -128,6 +130,7 @@ test_sdi12 (void)
         }
       trace::printf ("Sensor %c is active\n", sensor_addr);
 
+      // send identification command (aI!)
       if (sdi12dr.send_id (sensor_addr, buff, sizeof(buff)) == false)
         {
           trace::printf ("Failed to get sensor identification\n");
@@ -135,6 +138,7 @@ test_sdi12 (void)
         }
       trace::printf ("Sensor identification: %s\n", buff);
 
+      // change address from 0 to 1 (aAb!)
       if (sdi12dr.change_address (sensor_addr, '1') == false)
         {
           trace::printf ("Failed to change sensor's address\n");
@@ -143,35 +147,24 @@ test_sdi12 (void)
       sensor_addr = '1';
       trace::printf ("Sensor address changed to %c\n", sensor_addr);
 
-      int delay;
+      // send measure (M/C/R/V with D)
       int meas;
-      if (sdi12dr.start_measurement (sensor_addr, false, false, 0, delay, meas)
-          == false)
-        {
-          trace::printf ("Failed to start a measurement\n");
-          break;
-        }
-      trace::printf ("Expect %d values after %d seconds\n", meas, delay);
-
-      if (sdi12dr.wait_for_service_request (sensor_addr, delay) == false)
-        {
-          trace::printf ("Error waiting for the sensor\n");
-          break;
-        }
-
       float data[20];
-      if (sdi12dr.send_data(sensor_addr, false, data, meas) == false)
+      meas = 20;
+      if (sdi12dr.sample_sensor (sensor_addr, sdi12_dr::measure, 0, false,
+                                 data, meas) == false)
         {
-          trace::printf ("Error retrieving the data from sensor\n");
+          trace::printf ("Error getting data from sensor\n");
           break;
         }
       trace::printf ("Got %d values from sensor\n", meas);
       for (int i = 0; i < meas; i++)
         {
-          trace::printf("%f, ", data[i]);
+          trace::printf ("%f, ", data[i]);
         }
       trace::printf ("\n");
 
+      // change address to original address
       if (sdi12dr.change_address (sensor_addr, '0') == false)
         {
           trace::printf ("Failed to change sensor's address\n");
@@ -180,77 +173,20 @@ test_sdi12 (void)
       sensor_addr = '0';
       trace::printf ("Sensor address changed back to %c\n", sensor_addr);
 
+      // close sdi12 port
       sdi12dr.close ();
       trace::printf ("sdi12 port closed\n", sensor_addr);
       result = 0;
     }
   while (0);
 
-  if (result < 0)
+  if (result == false)
     {
       trace::printf ("SDI-12 test failed\n");
     }
   else
     {
       trace::printf ("SDI-12 test successful\n");
-    }
-
-}
-
-// implementation of our own sdi12 uart derived class
-
-sdi12_uart::sdi12_uart (const char* name, UART_HandleTypeDef* huart,
-                        uint8_t* tx_buff, uint8_t* rx_buff, size_t tx_buff_size,
-                        size_t rx_buff_size, bool is_rs485,
-                        uint32_t rs485_de_params) :
-    uart
-      { name, huart, tx_buff, rx_buff, tx_buff_size, rx_buff_size, is_rs485,
-          rs485_de_params }
-{
-  trace::printf ("%s() %p\n", __func__, this);
-}
-
-sdi12_uart::~sdi12_uart ()
-{
-  trace::printf ("%s() %p\n", __func__, this);
-}
-
-int
-sdi12_uart::do_tcsendbreak (int duration)
-{
-  GPIO_InitTypeDef GPIO_InitStruct;
-
-  GPIO_InitStruct.Pin = GPIO_PIN_9;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_PULLUP;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_MEDIUM;
-  HAL_GPIO_Init (GPIOA, &GPIO_InitStruct);
-
-  do_rs485_de (true);
-  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_9, GPIO_PIN_RESET);
-  rtos::sysclock.sleep_for (duration);
-  HAL_GPIO_WritePin (GPIOA, GPIO_PIN_9, GPIO_PIN_SET);
-
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Alternate = GPIO_AF7_USART1;
-  HAL_GPIO_Init (GPIOA, &GPIO_InitStruct);
-  do_rs485_de (false);
-
-  return 0;
-}
-
-void
-sdi12_uart::do_rs485_de (bool state)
-{
-  if (rs485_de_params_)
-    {
-      HAL_GPIO_WritePin (GPIOB, GPIO_PIN_4 | GPIO_PIN_5,
-                         state ? GPIO_PIN_SET : GPIO_PIN_RESET);
-    }
-  else
-    {
-      HAL_GPIO_WritePin (GPIOB, GPIO_PIN_4 | GPIO_PIN_5,
-                         state ? GPIO_PIN_RESET : GPIO_PIN_SET);
     }
 }
 

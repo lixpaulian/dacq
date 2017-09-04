@@ -31,36 +31,12 @@
 #define TEST_SDI_12_DR_TEST_H_
 
 #include <cmsis-plus/rtos/os.h>
-
-#include "uart-drv.h"
+#include "sdi-12-uart.h"
 
 #if defined (__cplusplus)
 
 void
 test_sdi12 (void);
-
-// we derive own uart class to customize the rs485 DE signal and the
-// send break timing
-class sdi12_uart : public os::driver::uart
-{
-public:
-
-  sdi12_uart (const char* name, UART_HandleTypeDef* huart, uint8_t* tx_buff,
-              uint8_t* rx_buff, size_t tx_buff_size, size_t rx_buff_size,
-              bool is_rs485, uint32_t rs485_de_params);
-
-  virtual
-  ~sdi12_uart () noexcept;
-
-protected:
-
-  virtual int
-  do_tcsendbreak (int duration) override;
-
-  virtual void
-  do_rs485_de (bool state) override;
-
-};
 
 #endif /* (__cplusplus) */
 
