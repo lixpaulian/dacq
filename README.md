@@ -3,7 +3,7 @@ A library implementing SDI-12 Data Recorder functionality. For more details on t
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 0.2 (29 August 2017)
+* 0.3 (4 September 2017)
 
 ## License
 * MIT
@@ -18,7 +18,10 @@ The driver depends on the following software package, available as _xpacks_:
 
 The library has been first developed on an ARM Cortex M7 platform from ST, but it does not depend on a specific microcontroller.
 
+## API Description
+TBD.
+
 ## Tests
-A test suite exercising most of the SDI-12 commands is included. You need an SDI-12 sensor to use the test; you might also need to adapt the test suite to the actual address of the sensor.
+A test suite exercising most of the SDI-12 commands is included. You need an SDI-12 sensor to run the test; you might also need to adapt the test suite to the actual address of the sensor.
 
 This is work in progress.
