@@ -28,7 +28,7 @@
  */
 
 /*
- * This file implements the communication functionality of a SDI-12 data recorder.
+ * This file implements the communication functionality of an SDI-12 data recorder.
  */
 
 #include <inttypes.h>
@@ -36,7 +36,6 @@
 #include <cmsis-plus/diag/trace.h>
 
 #include "sdi-12-dr.h"
-#include "sdi-12-dr-test.h"
 
 #ifndef SDI_BREAK_LEN
 #define SDI_BREAK_LEN 20        // milliseconds
@@ -187,8 +186,49 @@ sdi12_dr::change_address (char addr, char new_addr)
 }
 
 bool
-sdi12_dr::start_measurement (char addr, bool use_crc, bool concurrent,
-                             uint8_t index, int& response_delay,
+sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
+                         bool use_crc, float* data, int& max_values)
+{
+  bool result = false;
+  int waiting_time;
+  int measurements;
+
+  mutex_.lock ();
+
+  do
+    {
+      if (method != sdi12_dr::continuous)
+        {
+          if (start_measurement (addr, method, index, use_crc, waiting_time,
+                                 measurements) == false)
+            {
+              break;
+            }
+          if (wait_for_service_request (addr, waiting_time) == false)
+            {
+              break;
+            }
+          measurements = std::min (max_values, measurements);
+          method = (method_t) 'D';
+          index = 0;
+        }
+      if (send_data (addr, method, index, use_crc, data, measurements) == false)
+        {
+          break;
+        }
+      max_values = measurements;
+      result = true;
+    }
+  while (0);
+
+  mutex_.unlock ();
+
+  return result;
+}
+
+bool
+sdi12_dr::start_measurement (char addr, sdi12_dr::method_t method,
+                             uint8_t index, bool use_crc, int& response_delay,
                              int& measurements)
 {
   bool result = false;
@@ -198,9 +238,9 @@ sdi12_dr::start_measurement (char addr, bool use_crc, bool concurrent,
   if (index < 10)
     {
       buff[0] = addr;
-      buff[1] = concurrent ? 'C' : 'M';
-      buff[2] = use_crc ? 'C' : index ? index + 0x30 : '!';
-      buff[3] = use_crc ? (index ? index + 0x30 : '!') : '\0';
+      buff[1] = method;
+      buff[2] = use_crc ? 'C' : index ? index + '0' : '!';
+      buff[3] = use_crc ? (index ? index + '0' : '!') : '\0';
       buff[4] = (use_crc && index) ? '!' : '\0';
       buff[5] = '\0';
 
@@ -240,7 +280,7 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
             {
               res = tty_->read (buff, sizeof(buff));
             }
-          while (response_delay-- && res == 0);
+          while (--response_delay > 0 && res == 0);
           if (res > 0 && addr == buff[0])
             {
               last_sdi_time_ = os::rtos::sysclock.now ();
@@ -260,17 +300,18 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
 }
 
 bool
-sdi12_dr::send_data (char addr, bool use_crc, float* data, int& measurements)
+sdi12_dr::send_data (char addr, method_t method, uint8_t index, bool use_crc,
+                     float* data, int& measurements)
 {
   bool result = false;
   char buff[SDI12_LONGEST_FRAME];
-  char request = '0';
+  char request = index + '0';
   int parsed = 0, count;
 
   do
     {
       buff[0] = addr;
-      buff[1] = 'D';
+      buff[1] = method;
       buff[2] = request;
       buff[3] = '!';
       buff[4] = '\0';
@@ -304,6 +345,11 @@ sdi12_dr::send_data (char addr, bool use_crc, float* data, int& measurements)
               parsed++;
             }
           while (*r != '\0' && parsed < measurements);
+
+          if (method == sdi12_dr::continuous)
+            {
+              break;
+            }
         }
     }
   while (request++ < '9' && count > 0 && parsed < measurements);

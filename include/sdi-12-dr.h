@@ -44,6 +44,14 @@ public:
 
   ~sdi12_dr ();
 
+  typedef enum
+  {
+    measure = 'M', //
+    concurrent = 'C', //
+    continuous = 'R', //
+    verify = 'V'
+  } method_t;
+
   bool
   open (void);
 
@@ -60,23 +68,35 @@ public:
   change_address (char addr, char new_addr);
 
   bool
-  start_measurement (char addr, bool use_crc, bool concurrent, uint8_t index,
+  sample_sensor (char addr, method_t method, uint8_t index, bool use_crc,
+                 float* data, int& max_values);
+
+  // --------------------------------------------------------------------
+
+protected:
+
+  // --------------------------------------------------------------------
+
+private:
+
+  bool
+  start_measurement (char addr, method_t method, uint8_t index, bool use_crc,
                      int& response_delay, int& measurements);
 
   bool
   wait_for_service_request (char addr, int response_delay);
 
   bool
-  send_data (char addr, bool use_crc, float* data, int& measurements);
+  send_data (char addr, method_t method, uint8_t index, bool use_crc,
+             float* data, int& measurements);
+  int
+  transaction (char* buff, size_t buff_len);
 
-  // --------------------------------------------------------------------
-
-protected:
-
-private:
+  uint16_t
+  calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len);
 
   static constexpr uint8_t UART_DRV_VERSION_MAJOR = 0;
-  static constexpr uint8_t UART_DRV_VERSION_MINOR = 2;
+  static constexpr uint8_t UART_DRV_VERSION_MINOR = 3;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
@@ -87,12 +107,6 @@ private:
   os::rtos::clock::timestamp_t last_sdi_time_ = 0;
   os::rtos::mutex mutex_
     { "sdi12_dr" };
-
-  int
-  transaction (char* buff, size_t buff_len);
-
-  uint16_t
-  calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len);
 
 };
 
