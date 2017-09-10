@@ -66,11 +66,11 @@ Following symbols are used to configure the library:
 
 `SDI_BREAK_LEN` defines the length of the break character (default 20 milliseconds).
 
-`MAX_CONCURENT_REQUESTS` defines the maximum number of concurrent requests when using the `sample_sensor_async` call (default 20). It sets the maximum number of sensors that can be retrieved simultaneously using the "C" (concurrent) command. The `sample_sensor_async` call returns immediatley after querrying a sensor, and the results are delivered through the provided call-back function when the sensor is ready. Between querry and result, the application is free to issue parallel querries to other sensors.
+`MAX_CONCURRENT_REQUESTS` defines the maximum number of concurrent requests when using the `sample_sensor_async` call (default 20). It sets the maximum number of sensors that can be retrieved simultaneously using the "C" (concurrent) command. The `sample_sensor_async` call returns immediatley after querrying a sensor, and the results are delivered through the provided call-back function when the sensor is ready. Between querry and result, the application is free to issue parallel querries to other sensors.
 
 Note that this option may significantly increase the RAM usage: 32 bytes of RAM per concurrent request are used. In addition, a separate "SDI-12 collect" thread will be started with its own stack and RAM requirements. The advantage of the asynchronous primitive comes in handy when there are many sensors to querry, as the data retrieval will be done much faster.
 
-On systems with reduced RAM, you may want to set `MAX_CONCURENT_REQUESTS` to 0; in this case the `sample_sensor_async` primitive will be eliminated and the RAM usage will be reduced. All SDI-12 data retrieval commands, including "C" (concurrent) can be issued using the `sample_sensor` primitive. The sensors will be sampled sequentially, one call at a time.
+On systems with reduced RAM, you may want to set `MAX_CONCURRENT_REQUESTS` to 0; in this case the `sample_sensor_async` primitive will be eliminated and the RAM usage will be reduced. All SDI-12 data retrieval commands, including "C" (concurrent) can be issued using the `sample_sensor` primitive.
 
 ## Tests
 A test suite exercising most of the SDI-12 commands is included. You need an SDI-12 sensor to run the test; you might also need to adapt the test suite to the actual address of the sensor.
@@ -82,7 +82,7 @@ After the SDI-12 port is opened, following commands are executed:
 * sensor address change (from initial default address 0 to address 1)
 * sensor sample (uses SDI-12 "M" and "D" commands)
 * asynchronous sensor sample (uses the SDI-12 concurrent "C" command)
-* changes the address back to its original default
+* sensor address change (back to its original default)
 
 After the test finishes, the SDI-12 port is closed.
 
