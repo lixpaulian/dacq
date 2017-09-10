@@ -34,6 +34,14 @@
 
 #include "uart-drv.h"
 
+#ifndef SDI_BREAK_LEN
+#define SDI_BREAK_LEN 20        // milliseconds
+#endif
+
+#ifndef MAX_CONCURENT_REQUESTS
+#define MAX_CONCURENT_REQUESTS 20
+#endif
+
 #if defined (__cplusplus)
 
 class sdi12_dr
@@ -71,6 +79,16 @@ public:
   sample_sensor (char addr, method_t method, uint8_t index, bool use_crc,
                  float* data, int& max_values);
 
+#if MAX_CONCURENT_REQUESTS != 0
+  bool
+  sample_sensor_async (char addr, uint8_t index, bool use_crc, float* data,
+                           int max_values, bool
+                           (*cb) (char, float*, int));
+#endif // MAX_CONCURENT_REQUESTS != 0
+
+  bool
+  transparent (char* xfer_buff, int& len);
+
   // --------------------------------------------------------------------
 
 protected:
@@ -95,11 +113,34 @@ private:
   uint16_t
   calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len);
 
+  static void*
+  collect (void* args);
+
   static constexpr uint8_t UART_DRV_VERSION_MAJOR = 0;
-  static constexpr uint8_t UART_DRV_VERSION_MINOR = 3;
+  static constexpr uint8_t UART_DRV_VERSION_MINOR = 4;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
+
+#if MAX_CONCURENT_REQUESTS != 0
+  typedef struct concurrent_msg_
+  {
+    char addr;
+    bool use_crc;
+    os::rtos::clock::timestamp_t response_delay;
+    float* data;
+    int measurements;
+    bool
+    (*cb) (char, float*, int);
+  } concurent_msg_t;
+
+  concurent_msg_t msgs_[MAX_CONCURENT_REQUESTS];
+
+  os::rtos::semaphore_counting sem_
+    { "sdi12_dr", 2, 0 };
+  os::rtos::thread th_
+    { "sdi12_collect", collect, static_cast<void*> (this) };
+#endif // MAX_CONCURENT_REQUESTS != 0
 
   const char* name_;
   os::posix::tty* tty_;
@@ -107,7 +148,6 @@ private:
   os::rtos::clock::timestamp_t last_sdi_time_ = 0;
   os::rtos::mutex mutex_
     { "sdi12_dr" };
-
 };
 
 #endif /* (__cplusplus) */

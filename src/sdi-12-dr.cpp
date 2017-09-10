@@ -37,10 +37,6 @@
 
 #include "sdi-12-dr.h"
 
-#ifndef SDI_BREAK_LEN
-#define SDI_BREAK_LEN 20        // milliseconds
-#endif
-
 using namespace os;
 
 #pragma GCC diagnostic push
@@ -222,6 +218,79 @@ sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
   while (0);
 
   mutex_.unlock ();
+
+  return result;
+}
+
+#if MAX_CONCURENT_REQUESTS != 0
+bool
+sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
+                               float* data, int max_values, bool
+                               (*cb) (char, float*, int))
+{
+  bool result = false;
+  int waiting_time;
+  int measurements;
+  concurent_msg_t* pmsg = nullptr;
+
+  if (cb != nullptr)
+    {
+      for (int i = 0; i < MAX_CONCURENT_REQUESTS; i++)
+        {
+          if (msgs_[i].addr == addr)
+            {
+              // this sensor is in the middle of a transaction, abort
+              return result;
+            }
+        }
+
+      mutex_.lock ();
+
+      for (int i = 0; i < MAX_CONCURENT_REQUESTS; i++)
+        {
+          if (msgs_[i].addr == 0)
+            {
+              pmsg = &msgs_[i];
+              break;    // found a free entry
+            }
+        }
+
+      if (pmsg)
+        {
+          if (start_measurement (addr, sdi12_dr::concurrent, index, use_crc,
+                                 waiting_time, measurements) == true)
+            {
+              pmsg->addr = addr;
+              pmsg->use_crc = use_crc;
+              pmsg->data = data;
+              pmsg->response_delay = os::rtos::sysclock.now ()
+                  + waiting_time * 1000;
+              measurements = std::min (max_values, measurements);
+              pmsg->measurements = measurements;
+              pmsg->cb = cb;
+              if (sem_.post () == rtos::result::ok)
+                {
+                  result = true;
+                }
+            }
+        }
+
+      mutex_.unlock ();
+    }
+
+  return result;
+}
+#endif // MAX_CONCURENT_REQUESTS != 0
+
+bool
+sdi12_dr::transparent (char* xfer_buff, int& len)
+{
+  bool result = false;
+
+  if ((len = transaction (xfer_buff, len)) > 0)
+    {
+      result = true;
+    }
 
   return result;
 }
@@ -452,5 +521,63 @@ sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
     }
   return initial;
 }
+
+#if MAX_CONCURENT_REQUESTS != 0
+void*
+sdi12_dr::collect (void* args)
+{
+  sdi12_dr* self = static_cast<sdi12_dr*> (args);
+  rtos::semaphore_counting* sem = &self->sem_;
+  concurent_msg_t* pmsg = nullptr;
+  rtos::result_t result;
+  rtos::clock::duration_t timeout = 0xFFFFFFFF; // forever
+
+  memset (self->msgs_, 0, MAX_CONCURENT_REQUESTS * sizeof(concurent_msg_t));
+
+  while (true)
+    {
+      result = sem->timed_wait (timeout);
+      if (result != rtos::result::ok)
+        {
+          // if timeout, at least one sensor is now ready, let's get its data
+          if (pmsg != nullptr)
+            {
+              self->mutex_.lock ();
+              if (self->send_data (pmsg->addr, (method_t) 'D', 0, pmsg->use_crc,
+                                   pmsg->data, pmsg->measurements) == true)
+                {
+                  pmsg->cb (pmsg->addr, pmsg->data, pmsg->measurements);
+                }
+              pmsg->addr = 0;   // clear entry
+              self->mutex_.unlock ();
+            }
+        }
+      // else, we have a new entry from the main thread
+      // search for the next sensor (if any) to be ready to deliver its data
+      rtos::clock::duration_t nearest_request = 0xFFFFFFFF;
+      pmsg = nullptr;
+      for (int i = 0; i < MAX_CONCURENT_REQUESTS; i++)
+        {
+          if (self->msgs_[i].addr != 0)
+            {
+              if (self->msgs_[i].response_delay < nearest_request)
+                {
+                  nearest_request = self->msgs_[i].response_delay;
+                  pmsg = &self->msgs_[i];
+                }
+            }
+        }
+
+      // compute the timeout for the next wake-up
+      timeout =
+          pmsg != nullptr ?
+              pmsg->response_delay > os::rtos::sysclock.now () ?
+                  pmsg->response_delay - os::rtos::sysclock.now () : 0
+              : 0xFFFFFFFF;
+    }
+
+  return nullptr;
+}
+#endif // MAX_CONCURENT_REQUESTS != 0
 
 #pragma GCC diagnostic pop
