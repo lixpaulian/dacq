@@ -222,7 +222,7 @@ sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
   return result;
 }
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
 bool
 sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
                                float* data, int max_values, bool
@@ -235,7 +235,7 @@ sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
 
   if (cb != nullptr)
     {
-      for (int i = 0; i < MAX_CONCURENT_REQUESTS; i++)
+      for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
         {
           if (msgs_[i].addr == addr)
             {
@@ -246,7 +246,7 @@ sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
 
       mutex_.lock ();
 
-      for (int i = 0; i < MAX_CONCURENT_REQUESTS; i++)
+      for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
         {
           if (msgs_[i].addr == 0)
             {
@@ -280,7 +280,7 @@ sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
 
   return result;
 }
-#endif // MAX_CONCURENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS != 0
 
 bool
 sdi12_dr::transparent (char* xfer_buff, int& len)
@@ -522,7 +522,7 @@ sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
   return initial;
 }
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
 void*
 sdi12_dr::collect (void* args)
 {
@@ -532,7 +532,7 @@ sdi12_dr::collect (void* args)
   rtos::result_t result;
   rtos::clock::duration_t timeout = 0xFFFFFFFF; // forever
 
-  memset (self->msgs_, 0, MAX_CONCURENT_REQUESTS * sizeof(concurent_msg_t));
+  memset (self->msgs_, 0, MAX_CONCURRENT_REQUESTS * sizeof(concurent_msg_t));
 
   while (true)
     {
@@ -556,7 +556,7 @@ sdi12_dr::collect (void* args)
       // search for the next sensor (if any) to be ready to deliver its data
       rtos::clock::duration_t nearest_request = 0xFFFFFFFF;
       pmsg = nullptr;
-      for (int i = 0; i < MAX_CONCURENT_REQUESTS; i++)
+      for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
         {
           if (self->msgs_[i].addr != 0)
             {
@@ -578,6 +578,6 @@ sdi12_dr::collect (void* args)
 
   return nullptr;
 }
-#endif // MAX_CONCURENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS != 0
 
 #pragma GCC diagnostic pop

@@ -102,7 +102,7 @@ HAL_UART_ErrorCallback (UART_HandleTypeDef *huart)
 sdi12_dr sdi12dr
   { "/dev/uart1" };
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
 static bool
 cb_get_data (char addr, float* data, int max_values);
 #endif
@@ -169,7 +169,7 @@ test_sdi12 (void)
         }
       trace::printf ("\n");
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
       // asynchronous measure (C with D)
       if (sdi12dr.sample_sensor_async (sensor_addr, 0, false,
                                  data, meas, cb_get_data) == false)
@@ -180,7 +180,7 @@ test_sdi12 (void)
 
       // wait for the asynchronous measurement to finish
       rtos::sysclock.sleep_for (4000);
-#endif // MAX_CONCURENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS != 0
 
       // change address to original address
       if (sdi12dr.change_address (sensor_addr, '0') == false)
@@ -209,7 +209,7 @@ test_sdi12 (void)
     }
 }
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
 static bool
 cb_get_data (char addr, float* data, int max_values)
 {
@@ -221,5 +221,5 @@ cb_get_data (char addr, float* data, int max_values)
   trace::printf ("\n");
   return true;
 }
-#endif // MAX_CONCURENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS != 0
 #endif

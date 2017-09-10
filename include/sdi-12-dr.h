@@ -38,8 +38,8 @@
 #define SDI_BREAK_LEN 20        // milliseconds
 #endif
 
-#ifndef MAX_CONCURENT_REQUESTS
-#define MAX_CONCURENT_REQUESTS 20
+#ifndef MAX_CONCURRENT_REQUESTS
+#define MAX_CONCURRENT_REQUESTS 20
 #endif
 
 #if defined (__cplusplus)
@@ -79,12 +79,12 @@ public:
   sample_sensor (char addr, method_t method, uint8_t index, bool use_crc,
                  float* data, int& max_values);
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
   bool
   sample_sensor_async (char addr, uint8_t index, bool use_crc, float* data,
                            int max_values, bool
                            (*cb) (char, float*, int));
-#endif // MAX_CONCURENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS != 0
 
   bool
   transparent (char* xfer_buff, int& len);
@@ -122,7 +122,7 @@ private:
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
 
-#if MAX_CONCURENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS != 0
   typedef struct concurrent_msg_
   {
     char addr;
@@ -134,13 +134,13 @@ private:
     (*cb) (char, float*, int);
   } concurent_msg_t;
 
-  concurent_msg_t msgs_[MAX_CONCURENT_REQUESTS];
+  concurent_msg_t msgs_[MAX_CONCURRENT_REQUESTS];
 
   os::rtos::semaphore_counting sem_
     { "sdi12_dr", 2, 0 };
   os::rtos::thread th_
     { "sdi12_collect", collect, static_cast<void*> (this) };
-#endif // MAX_CONCURENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS != 0
 
   const char* name_;
   os::posix::tty* tty_;
