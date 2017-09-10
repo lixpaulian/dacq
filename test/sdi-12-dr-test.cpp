@@ -102,6 +102,11 @@ HAL_UART_ErrorCallback (UART_HandleTypeDef *huart)
 sdi12_dr sdi12dr
   { "/dev/uart1" };
 
+#if MAX_CONCURENT_REQUESTS != 0
+static bool
+cb_get_data (char addr, float* data, int max_values);
+#endif
+
 /**
  * @brief  This is a test function that exercises the SDI-12 library.
  */
@@ -117,7 +122,7 @@ test_sdi12 (void)
       // open sdi12 port
       if (sdi12dr.open () == false)
         {
-          trace::printf ("Could not open sdi12 port\n", sensor_addr);
+          trace::printf ("Could not open sdi12 port\n");
           break;
         }
       trace::printf ("sdi12 port opened\n", sensor_addr);
@@ -130,7 +135,7 @@ test_sdi12 (void)
         }
       trace::printf ("Sensor %c is active\n", sensor_addr);
 
-      // send identification command (aI!)
+      // identification command (aI!)
       if (sdi12dr.send_id (sensor_addr, buff, sizeof(buff)) == false)
         {
           trace::printf ("Failed to get sensor identification\n");
@@ -147,7 +152,7 @@ test_sdi12 (void)
       sensor_addr = '1';
       trace::printf ("Sensor address changed to %c\n", sensor_addr);
 
-      // send measure (M/C/R/V with D)
+      // measure (M/C/R/V with D)
       int meas;
       float data[20];
       meas = 20;
@@ -164,6 +169,19 @@ test_sdi12 (void)
         }
       trace::printf ("\n");
 
+#if MAX_CONCURENT_REQUESTS != 0
+      // asynchronous measure (C with D)
+      if (sdi12dr.sample_sensor_async (sensor_addr, 0, false,
+                                 data, meas, cb_get_data) == false)
+        {
+          trace::printf ("Error getting concurrent data from sensor\n");
+          break;
+        }
+
+      // wait for the asynchronous measurement to finish
+      rtos::sysclock.sleep_for (4000);
+#endif // MAX_CONCURENT_REQUESTS != 0
+
       // change address to original address
       if (sdi12dr.change_address (sensor_addr, '0') == false)
         {
@@ -173,12 +191,13 @@ test_sdi12 (void)
       sensor_addr = '0';
       trace::printf ("Sensor address changed back to %c\n", sensor_addr);
 
-      // close sdi12 port
-      sdi12dr.close ();
-      trace::printf ("sdi12 port closed\n", sensor_addr);
-      result = 0;
+      result = true;
     }
   while (0);
+
+  // close sdi12 port
+  sdi12dr.close ();
+  trace::printf ("sdi12 port closed\n", sensor_addr);
 
   if (result == false)
     {
@@ -190,4 +209,17 @@ test_sdi12 (void)
     }
 }
 
+#if MAX_CONCURENT_REQUESTS != 0
+static bool
+cb_get_data (char addr, float* data, int max_values)
+{
+  trace::printf ("Got %d values from sensor %c\n", max_values, addr);
+  for (int i = 0; i < max_values; i++)
+    {
+      trace::printf ("%f, ", data[i]);
+    }
+  trace::printf ("\n");
+  return true;
+}
+#endif // MAX_CONCURENT_REQUESTS != 0
 #endif
