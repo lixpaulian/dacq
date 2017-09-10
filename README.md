@@ -28,34 +28,34 @@ sdi12_dr::open (void);
 
 // close an open SDI-12 serial port
 void
-sdi12_dr::close (void)
+sdi12_dr::close (void);
 
 // send an acknowledge active command
 bool
-sdi12_dr::ack_active (char addr)
+sdi12_dr::ack_active (char addr);
 
 // send identification command
 bool
-sdi12_dr::send_id (char addr, char* id, size_t id_len)
+sdi12_dr::send_id (char addr, char* id, size_t id_len);
 
 // change address command
 bool
-sdi12_dr::change_address (char addr, char new_addr)
+sdi12_dr::change_address (char addr, char new_addr);
 
 // sample a sensor command using M/C and D or R SDI-12 commands
 bool
 sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
-                         bool use_crc, float* data, int& max_values)
+                         bool use_crc, float* data, int& max_values);
 
 // asynchronously sample a sensor using the C (concurrent) command
 bool
 sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
                                float* data, int max_values, bool
-                               (*cb) (char, float*, int))
+                               (*cb) (char, float*, int));
 
 // SDI-12 transparent command; can also be used for sending X commands
 bool
-sdi12_dr::transparent (char* xfer_buff, int& len)
+sdi12_dr::transparent (char* xfer_buff, int& len);
 ```
 
 For more details on how to use of these primitives, please see the test files.
