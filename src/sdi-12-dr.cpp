@@ -151,7 +151,7 @@ sdi12_dr::ack_active (char addr)
  * @param addr: sensor's address.
  * @param id: buffer where the sensor identification string will be returned.
  * @param id_len: length of the buffer; if the ID string is longer than the
- *      buffer, the ID will be truncated.
+ *      buffer, it will be truncated.
  * @return true if successful, false otherwise.
  */
 bool
@@ -273,7 +273,7 @@ sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
 
 #if MAX_CONCURRENT_REQUESTS != 0
 /**
- * @brief Sample asynchronously a sensor; this function does not block. When the
+ * @brief Sample asynchronously a sensor; this function does not block. After the
  *      data is collected, the call-back function 'cb' will be called.
  * @param addr: sensor's address.
  * @param index: if an additional command, its number ("C1", "C2"...); when
@@ -416,7 +416,7 @@ sdi12_dr::start_measurement (char addr, sdi12_dr::method_t method,
  *      after which the function returns.
  * @return true if successful, false otherwise.
  * @note The function returns true either if the sensor sent a service request,
- *      or the timeout expired.
+ *      or if the timeout expired.
  */
 bool
 sdi12_dr::wait_for_service_request (char addr, int response_delay)
@@ -610,11 +610,11 @@ sdi12_dr::transaction (char* buff, size_t buff_len)
 }
 
 /**
- * @brief Compute the CRC of an SDI-12 answer.
- * @param initial: initial CRC value.
+ * @brief Compute the CRC of an SDI-12 string.
+ * @param initial: initial CRC value (normally 0).
  * @param buff: buffer containing the SDI-12 string.
  * @param buff_len: length of the SDI-12 string.
- * @return Computed CRC value for the whole SDI-12 string.
+ * @return Computed CRC value for the SDI-12 string.
  */
 uint16_t
 sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
