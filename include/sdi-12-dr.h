@@ -117,7 +117,7 @@ private:
   collect (void* args);
 
   static constexpr uint8_t UART_DRV_VERSION_MAJOR = 0;
-  static constexpr uint8_t UART_DRV_VERSION_MINOR = 4;
+  static constexpr uint8_t UART_DRV_VERSION_MINOR = 5;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;

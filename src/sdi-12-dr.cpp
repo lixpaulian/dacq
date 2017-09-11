@@ -42,6 +42,10 @@ using namespace os;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+/**
+ * @brief Constructor.
+ * @param name: the path of an RS-485 tty device (serial port).
+ */
 sdi12_dr::sdi12_dr (const char* name)
 {
   trace::printf ("%s() %p\n", __func__, this);
@@ -50,11 +54,19 @@ sdi12_dr::sdi12_dr (const char* name)
   tty_ = nullptr;
 }
 
+/**
+ * @brief Destructor.
+ */
 sdi12_dr::~sdi12_dr ()
 {
   trace::printf ("%s() %p\n", __func__, this);
 }
 
+/**
+ * @brief Open an RS-485 type tty device and configure it according to
+ *      the SDI-12 specs.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::open (void)
 {
@@ -96,6 +108,9 @@ sdi12_dr::open (void)
   return result;
 }
 
+/**
+ * @brief Close the SDI-12 tty device.
+ */
 void
 sdi12_dr::close (void)
 {
@@ -103,6 +118,11 @@ sdi12_dr::close (void)
   tty_ = nullptr;
 }
 
+/**
+ * @brief Implementation of the "Acknowledge Active" command.
+ * @param addr: sensor's address.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::ack_active (char addr)
 {
@@ -126,6 +146,14 @@ sdi12_dr::ack_active (char addr)
   return result;
 }
 
+/**
+ * @brief Implementation of the "Send ID" command.
+ * @param addr: sensor's address.
+ * @param id: buffer where the sensor identification string will be returned.
+ * @param id_len: length of the buffer; if the ID string is longer than the
+ *      buffer, the ID will be truncated.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::send_id (char addr, char* id, size_t id_len)
 {
@@ -147,15 +175,23 @@ sdi12_dr::send_id (char addr, char* id, size_t id_len)
               if ((p = strstr (id, "\r\n")) != nullptr)
                 {
                   *p = '\0';    // replace cr with a null terminator
+                  memmove (id, id + 1, strlen (id)); // remove address
                   result = true;
                 }
             }
         }
       mutex_.unlock ();
     }
+
   return result;
 }
 
+/**
+ * @brief Implementation of the "Change Address" command.
+ * @param addr: sensor's address.
+ * @param new_addr: new sensor address.
+ * @return true if address change was successful, false otherwise.
+ */
 bool
 sdi12_dr::change_address (char addr, char new_addr)
 {
@@ -181,6 +217,19 @@ sdi12_dr::change_address (char addr, char new_addr)
   return result;
 }
 
+/**
+ * @brief Sample a sensor; this function blocks until the sensor returns the data.
+ * @param addr: sensor's address.
+ * @param method: method used ("M" - measure, "C" - concurrent, "R" - continuous,
+ *      "V" - verify).
+ * @param index: if an additional command, its number ("M1", "M2"... "C1"... "R0",
+ *      "R1"...); when using standard commands (e.g. "M"), set the index to 0.
+ * @param use_crc: true if CRC is requested, false otherwise.
+ * @param data: pointer on an array of floats where the data will be returned.
+ * @param max_values: maximum number of values allowed in 'data'. On return,
+ *      it contains the actual number of values returned by the sensor.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
                          bool use_crc, float* data, int& max_values)
@@ -223,6 +272,18 @@ sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
 }
 
 #if MAX_CONCURRENT_REQUESTS != 0
+/**
+ * @brief Sample asynchronously a sensor; this function does not block. When the
+ *      data is collected, the call-back function 'cb' will be called.
+ * @param addr: sensor's address.
+ * @param index: if an additional command, its number ("C1", "C2"...); when
+ *      using the standard command "C", set the index to 0.
+ * @param use_crc: true if CRC is requested, false otherwise.
+ * @param data: pointer on an array of floats where the data will be returned.
+ * @param max_values: maximum number of values allowed in 'data'.
+ * @param cb: call-back function called after the data has been collected.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
                                float* data, int max_values, bool
@@ -282,6 +343,14 @@ sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
 }
 #endif // MAX_CONCURRENT_REQUESTS != 0
 
+/**
+ * @brief Execute a transparent command. This function may be used also for the
+ *      extended commands "X".
+ * @param xfer_buff: buffer to send the data and receive the answer to/from the
+ *      sensor.
+ * @param len: buffer length; on return it contains the length of the answer.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::transparent (char* xfer_buff, int& len)
 {
@@ -295,6 +364,19 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
   return result;
 }
 
+// --------------------------------------------------------------------------
+
+/**
+ * @brief Start a two-steps measurement using "M", "C" or "V" SDI-12 commands.
+ * @param addr: sensor's address.
+ * @param method: method used ("M" - measure, "C" - concurrent, "V" - verify).
+ * @param index: if an additional command, its number ("M1", "M2"... "C1"... );
+ *      when using standard commands (e.g. "M" or "C"), set the index to 0.
+ * @param use_crc: true if CRC is requested, false otherwise.
+ * @param response_delay: number of seconds the sensor needs to return the values.
+ * @param measurements: the number of values that will be returned by the sensor.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::start_measurement (char addr, sdi12_dr::method_t method,
                              uint8_t index, bool use_crc, int& response_delay,
@@ -323,9 +405,19 @@ sdi12_dr::start_measurement (char addr, sdi12_dr::method_t method,
           result = true;
         }
     }
+
   return result;
 }
 
+/**
+ * @brief Wait for a service request from a sensor.
+ * @param addr: sensor's address.
+ * @param response_delay: number of seconds to wait until the sensor answer,
+ *      after which the function returns.
+ * @return true if successful, false otherwise.
+ * @note The function returns true either if the sensor sent a service request,
+ *      or the timeout expired.
+ */
 bool
 sdi12_dr::wait_for_service_request (char addr, int response_delay)
 {
@@ -365,9 +457,21 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
           result = false;
         }
     }
+
   return result;
 }
 
+/**
+ * @brief Implementation of the "Send Data" command.
+ * @param addr: sensor's address.
+ * @param method: method used, can be either "D" or "R".
+ * @param index: initial index; for "D" normally 0, for "R" can be 0 to 9.
+ * @param use_crc: true if CRC is requested, false otherwise.
+ * @param data: pointer on an array of floats where the data will be returned.
+ * @param measurements: maximum number of values allowed in 'data'. On return,
+ *      it contains the actual number of values returned by the sensor.
+ * @return true if successful, false otherwise.
+ */
 bool
 sdi12_dr::send_data (char addr, method_t method, uint8_t index, bool use_crc,
                      float* data, int& measurements)
@@ -432,8 +536,13 @@ sdi12_dr::send_data (char addr, method_t method, uint8_t index, bool use_crc,
   return result;
 }
 
-// -------------------------------------------------------------------------
-
+/**
+ * @brief Perform an SDI-12 transaction using the RS-485 tty.
+ * @param buff: buffer containing the SDI-12 request, "!" terminated; on return,
+ *      the buffer should contain the SDI-12 answer from the sensor.
+ * @param buff_len: buffer's length.
+ * @return: Number of characters returned. In case of errors -1 will be returned.
+ */
 int
 sdi12_dr::transaction (char* buff, size_t buff_len)
 {
@@ -500,6 +609,13 @@ sdi12_dr::transaction (char* buff, size_t buff_len)
   return result;
 }
 
+/**
+ * @brief Compute the CRC of an SDI-12 answer.
+ * @param initial: initial CRC value.
+ * @param buff: buffer containing the SDI-12 string.
+ * @param buff_len: length of the SDI-12 string.
+ * @return Computed CRC value for the whole SDI-12 string.
+ */
 uint16_t
 sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
 {
@@ -519,10 +635,15 @@ sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
             initial >>= 1;
         }
     }
+
   return initial;
 }
 
 #if MAX_CONCURRENT_REQUESTS != 0
+/**
+ * @brief Thread to handle asynchronous sensor data sampling.
+ * @param args: pointer on the class ("this").
+ */
 void*
 sdi12_dr::collect (void* args)
 {
