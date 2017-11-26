@@ -60,8 +60,8 @@ os::posix::file_descriptors_manager descriptors_manager
 #define SDI_BUFF_SIZE 84
 
 sdi12_uart uart1
-  { "uart1", &huart1, nullptr, nullptr, TX_BUFFER_SIZE, RX_BUFFER_SIZE, true,
-      driver::uart::RS485_DE_POLARITY_MASK };
+  { "uart1", &huart1, nullptr, nullptr, TX_BUFFER_SIZE, RX_BUFFER_SIZE,
+  driver::uart::RS485_MASK | driver::uart::RS485_DE_POLARITY_MASK };
 
 void
 HAL_UART_TxCpltCallback (UART_HandleTypeDef *huart)

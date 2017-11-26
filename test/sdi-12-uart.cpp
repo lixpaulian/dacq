@@ -36,11 +36,9 @@ using namespace os;
 
 sdi12_uart::sdi12_uart (const char* name, UART_HandleTypeDef* huart,
                         uint8_t* tx_buff, uint8_t* rx_buff, size_t tx_buff_size,
-                        size_t rx_buff_size, bool is_rs485,
-                        uint32_t rs485_de_params) :
+                        size_t rx_buff_size, uint32_t rs485_params) :
     uart
-      { name, huart, tx_buff, rx_buff, tx_buff_size, rx_buff_size, is_rs485,
-          rs485_de_params }
+      { name, huart, tx_buff, rx_buff, tx_buff_size, rx_buff_size, rs485_params }
 {
   trace::printf ("%s() %p\n", __func__, this);
 }
@@ -77,7 +75,7 @@ sdi12_uart::do_tcsendbreak (int duration)
 void
 sdi12_uart::do_rs485_de (bool state)
 {
-  if (rs485_de_params_)
+  if (rs485_params_)
     {
       HAL_GPIO_WritePin (GPIOB, GPIO_PIN_4 | GPIO_PIN_5,
                          state ? GPIO_PIN_SET : GPIO_PIN_RESET);

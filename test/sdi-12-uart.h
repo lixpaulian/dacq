@@ -43,7 +43,7 @@ public:
 
   sdi12_uart (const char* name, UART_HandleTypeDef* huart, uint8_t* tx_buff,
               uint8_t* rx_buff, size_t tx_buff_size, size_t rx_buff_size,
-              bool is_rs485, uint32_t rs485_de_params);
+              uint32_t rs485_params);
 
   virtual
   ~sdi12_uart () noexcept;
