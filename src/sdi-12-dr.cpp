@@ -28,7 +28,8 @@
  */
 
 /*
- * This file implements the communication functionality of an SDI-12 data recorder.
+ * This file implements the communication functionality of an SDI-12
+ * data recorder.
  */
 
 #include <inttypes.h>
@@ -37,8 +38,6 @@
 
 #include "sdi-12-dr.h"
 
-using namespace os;
-
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
@@ -46,12 +45,11 @@ using namespace os;
  * @brief Constructor.
  * @param name: the path of an RS-485 tty device (serial port).
  */
-sdi12_dr::sdi12_dr (const char* name)
+sdi12_dr::sdi12_dr (const char* name) :
+    dacq
+      { name }
 {
   trace::printf ("%s() %p\n", __func__, this);
-
-  name_ = name;
-  tty_ = nullptr;
 }
 
 /**
@@ -63,119 +61,117 @@ sdi12_dr::~sdi12_dr ()
 }
 
 /**
- * @brief Open an RS-485 type tty device and configure it according to
- *      the SDI-12 specs.
- * @return true if successful, false otherwise.
+ * @brief Perform an SDI-12 transaction using the RS-485 tty.
+ * @param buff: buffer containing the SDI-12 request; on return, the buffer
+ *      should contain the SDI-12 answer from the sensor.
+ * @param cmd_len: command length.
+ * @param len: buffer's total length.
+ * @return: Number of characters returned. In case of errors -1 will be returned.
  */
-bool
-sdi12_dr::open (void)
+int
+sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 {
-  bool result = false;
+  int result = 0;
+  int retries_with_break = 3;
+  char answer[SDI12_LONGEST_FRAME];
 
   do
     {
-      if (tty_)
+      // check if we need to send a break
+      if (last_sdi_addr_ != buff[0] || (sysclock.now () - last_sdi_time_) > 80)
         {
-          break;        // already in use
+          // send a break at least 12 ms long
+          tty_->tcsendbreak (SDI_BREAK_LEN);
         }
+      last_sdi_addr_ = buff[0];     // replace last address
 
-      tty_ = static_cast<os::posix::tty*> (os::posix::open (name_, 0));
-      if (tty_ == nullptr)
+      // wait at least 8.33 ms
+      sysclock.sleep_for (10);
+
+      int retries = 3;
+      bool valid_sdi12 = false;
+      do
         {
+          // send request
+          if ((result = tty_->write (buff, cmd_len)) < 0)
+            {
+              break;
+            }
+          // wait for the end of transmission
+          sysclock.sleep_for ((83 * cmd_len) / 10);
+          last_sdi_time_ = sysclock.now ();
+
+          // read response, if any
+          size_t offset = 0;
+          do
+            {
+              result = tty_->read (answer + offset, sizeof(answer) - offset);
+              if (result <= 0)
+                {
+                  break;
+                }
+              offset += result;
+              // check if the frame is valid
+              if (answer[offset - 1] == '\n' && answer[offset - 2] == '\r')
+                {
+                  valid_sdi12 = true;
+                  result = offset;
+                }
+              // we read until we get a valid frame or overflow the buffer
+            }
+          while (valid_sdi12 == false && offset < sizeof(answer));
+        }
+      while (valid_sdi12 == false && --retries);
+
+      if (valid_sdi12)
+        {
+          strncpy (buff, answer, len);
+          last_sdi_time_ = sysclock.now ();
           break;
         }
-
-      struct termios tio;
-      if (tty_->tcgetattr (&tio) < 0)
+      else
         {
-          break;
-        }
-      tio.c_cc[VTIME] = 0;  // 50 ms timeout
-      tio.c_cc[VTIME_MS] = 50;
-      tio.c_cc[VMIN] = 0;
+          // wait a little before a break and new triplet sequence
+          sysclock.sleep_for (10);
 
-      // set baud rate to 1200
-      tio.c_ospeed = tio.c_ispeed = 1200;
-
-      if (tty_->tcsetattr (TCSANOW, &tio) < 0)
-        {
-          break;
+          // force a break, even if the timeout did not expire
+          last_sdi_time_ = 0;
         }
-      result = true;
     }
-  while (0);
+  while (--retries_with_break);
 
   return result;
 }
 
 /**
- * @brief Close the SDI-12 tty device.
- */
-void
-sdi12_dr::close (void)
-{
-  tty_->close ();
-  tty_ = nullptr;
-}
-
-/**
- * @brief Implementation of the "Acknowledge Active" command.
- * @param addr: sensor's address.
+ * @brief Implementation of the "Send ID" command (sensor information).
+ * @param id: sensor's address.
+ * @param info: buffer where the sensor identification string will be returned.
+ * @param len: length of the buffer; if the ID string is longer than the buffer,
+ *      it will be truncated.
  * @return true if successful, false otherwise.
  */
 bool
-sdi12_dr::ack_active (char addr)
-{
-  char buff[8];
-  bool result = false;
-
-  buff[0] = addr;
-  buff[1] = '!';
-  buff[2] = '\0';
-
-  mutex_.lock ();
-  if (transaction (buff, sizeof(buff)) == 3)
-    {
-      if (buff[0] == addr && buff[1] == '\r' && buff[2] == '\n')
-        {
-          result = true;
-        }
-    }
-  mutex_.unlock ();
-
-  return result;
-}
-
-/**
- * @brief Implementation of the "Send ID" command.
- * @param addr: sensor's address.
- * @param id: buffer where the sensor identification string will be returned.
- * @param id_len: length of the buffer; if the ID string is longer than the
- *      buffer, it will be truncated.
- * @return true if successful, false otherwise.
- */
-bool
-sdi12_dr::send_id (char addr, char* id, size_t id_len)
+sdi12_dr::get_info (int id, char* info, size_t len)
 {
   bool result = false;
 
-  if (id_len > 36)
+  if (len > 36)
     {
-      id[0] = addr;
-      id[1] = 'I';
-      id[2] = '!';
-      id[3] = '\0';
+      info[0] = id;
+      info[1] = 'I';
+      info[2] = '!';
 
       mutex_.lock ();
-      if (transaction (id, id_len) > 0)
+      if (transaction (info, 3, len) > 0)
         {
-          if (id[0] == addr)
+          if (info[0] == id)
             {
               char *p;
-              if ((p = strstr (id, "\r\n")) != nullptr)
+              if ((p = strstr (info, "\r\n")) != nullptr)
                 {
                   *p = '\0';    // replace cr with a null terminator
-                  memmove (id, id + 1, strlen (id)); // remove address
+                  memmove (info, info + 1, strlen (info)); // remove address
                   result = true;
                 }
             }
@@ -187,219 +183,107 @@ sdi12_dr::send_id (char addr, char* id, size_t id_len)
 }
 
 /**
- * @brief Implementation of the "Change Address" command.
- * @param addr: sensor's address.
- * @param new_addr: new sensor address.
- * @return true if address change was successful, false otherwise.
- */
-bool
-sdi12_dr::change_address (char addr, char new_addr)
-{
-  char buff[8];
-  bool result = false;
-
-  buff[0] = addr;
-  buff[1] = 'A';
-  buff[2] = new_addr;
-  buff[3] = '!';
-  buff[4] = '\0';
-
-  mutex_.lock ();
-  if (transaction (buff, sizeof(buff)) == 3)
-    {
-      if (buff[0] == new_addr)
-        {
-          result = true;
-        }
-    }
-  mutex_.unlock ();
-
-  return result;
-}
-
-/**
- * @brief Sample a sensor; this function blocks until the sensor returns the data.
- * @param addr: sensor's address.
- * @param method: method used ("M" - measure, "C" - concurrent, "R" - continuous,
- *      "V" - verify).
- * @param index: if an additional command, its number ("M1", "M2"... "C1"... "R0",
- *      "R1"...); when using standard commands (e.g. "M"), set the index to 0.
- * @param use_crc: true if CRC is requested, false otherwise.
- * @param data: pointer on an array of floats where the data will be returned.
- * @param max_values: maximum number of values allowed in 'data'. On return,
- *      it contains the actual number of values returned by the sensor.
+ * @brief Retrieve data; this function blocks until the sensor returns the data.
+ * @param dacqh: pointer on a structure of type dacq_handle_t containing all
+ *      sensor relevant data.
  * @return true if successful, false otherwise.
  */
 bool
-sdi12_dr::sample_sensor (char addr, sdi12_dr::method_t method, uint8_t index,
-                         bool use_crc, float* data, int& max_values)
+sdi12_dr::retrieve (dacq_handle_t* dacqh)
 {
   bool result = false;
   int waiting_time;
-  int measurements;
+  uint8_t measurements;
+  sdi12_t* sdi = (sdi12_t*) dacqh->impl;
 
   mutex_.lock ();
 
   do
     {
-      if (method != sdi12_dr::continuous)
+      if (sdi->method != sdi12_dr::continuous)
         {
-          if (start_measurement (addr, method, index, use_crc, waiting_time,
-                                 measurements) == false)
+#if MAX_CONCURRENT_REQUESTS > 0
+          if (sdi->method == sdi12_dr::concurrent)
+            {
+              // we initiate a real concurrent retrieve (SDI-12 command C)
+              if (retrieve_concurrent (dacqh) == false)
+                {
+                  break;
+                }
+            }
+          else
+#endif
+            {
+              // initiate a sequential retrieve
+              if (start_measurement (sdi, waiting_time, measurements) == false)
+                {
+                  break;
+                }
+              // wait for the sensor to send a service request
+              if (wait_for_service_request (sdi->addr, waiting_time) == false)
+                {
+                  break;
+                }
+            }
+        }
+
+#if MAX_CONCURRENT_REQUESTS > 0
+      if (sdi->method != sdi12_dr::concurrent)
+#endif
+        {
+          measurements = std::min (dacqh->data_count, measurements);
+          sdi->method = (method_t) 'D';
+          sdi->index = 0;
+
+          // get data from sensor
+          if (get_data (sdi, dacqh->data, dacqh->status, measurements) == false)
             {
               break;
             }
-          if (wait_for_service_request (addr, waiting_time) == false)
-            {
-              break;
-            }
-          measurements = std::min (max_values, measurements);
-          method = (method_t) 'D';
-          index = 0;
+          dacqh->data_count = measurements;
         }
-      if (send_data (addr, method, index, use_crc, data, measurements) == false)
-        {
-          break;
-        }
-      max_values = measurements;
       result = true;
     }
   while (0);
 
   mutex_.unlock ();
-
-  return result;
-}
-
-#if MAX_CONCURRENT_REQUESTS != 0
-/**
- * @brief Sample asynchronously a sensor; this function does not block. After the
- *      data is collected, the call-back function 'cb' will be called.
- * @param addr: sensor's address.
- * @param index: if an additional command, its number ("C1", "C2"...); when
- *      using the standard command "C", set the index to 0.
- * @param use_crc: true if CRC is requested, false otherwise.
- * @param data: pointer on an array of floats where the data will be returned.
- * @param max_values: maximum number of values allowed in 'data'.
- * @param cb: call-back function called after the data has been collected.
- * @return true if successful, false otherwise.
- */
-bool
-sdi12_dr::sample_sensor_async (char addr, uint8_t index, bool use_crc,
-                               float* data, int max_values, bool
-                               (*cb) (char, float*, int))
-{
-  bool result = false;
-  int waiting_time;
-  int measurements;
-  concurent_msg_t* pmsg = nullptr;
-
-  if (cb != nullptr)
-    {
-      for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
-        {
-          if (msgs_[i].addr == addr)
-            {
-              // this sensor is in the middle of a transaction, abort
-              return result;
-            }
-        }
-
-      mutex_.lock ();
-
-      for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
-        {
-          if (msgs_[i].addr == 0)
-            {
-              pmsg = &msgs_[i];
-              break;    // found a free entry
-            }
-        }
-
-      if (pmsg)
-        {
-          if (start_measurement (addr, sdi12_dr::concurrent, index, use_crc,
-                                 waiting_time, measurements) == true)
-            {
-              pmsg->addr = addr;
-              pmsg->use_crc = use_crc;
-              pmsg->data = data;
-              pmsg->response_delay = os::rtos::sysclock.now ()
-                  + waiting_time * 1000;
-              measurements = std::min (max_values, measurements);
-              pmsg->measurements = measurements;
-              pmsg->cb = cb;
-              if (sem_.post () == rtos::result::ok)
-                {
-                  result = true;
-                }
-            }
-        }
-
-      mutex_.unlock ();
-    }
-
-  return result;
-}
-#endif // MAX_CONCURRENT_REQUESTS != 0
-
-/**
- * @brief Execute a transparent command. This function may be used also for the
- *      extended commands "X".
- * @param xfer_buff: buffer to send the data and receive the answer to/from the
- *      sensor.
- * @param len: buffer length; on return it contains the length of the answer.
- * @return true if successful, false otherwise.
- */
-bool
-sdi12_dr::transparent (char* xfer_buff, int& len)
-{
-  bool result = false;
-
-  if ((len = transaction (xfer_buff, len)) > 0)
-    {
-      result = true;
-    }
 
   return result;
 }
 
 // --------------------------------------------------------------------------
 
+// --------------------------------------------------------------------------
+
 /**
  * @brief Start a two-steps measurement using "M", "C" or "V" SDI-12 commands.
- * @param addr: sensor's address.
- * @param method: method used ("M" - measure, "C" - concurrent, "V" - verify).
- * @param index: if an additional command, its number ("M1", "M2"... "C1"... );
- *      when using standard commands (e.g. "M" or "C"), set the index to 0.
- * @param use_crc: true if CRC is requested, false otherwise.
+ * @param sdi: a asdi12_t type structure defining a sensor.
  * @param response_delay: number of seconds the sensor needs to return the values.
  * @param measurements: the number of values that will be returned by the sensor.
  * @return true if successful, false otherwise.
  */
 bool
-sdi12_dr::start_measurement (char addr, sdi12_dr::method_t method,
-                             uint8_t index, bool use_crc, int& response_delay,
-                             int& measurements)
+sdi12_dr::start_measurement (sdi12_t* sdi, int& response_delay,
+                             uint8_t& measurements)
 {
   bool result = false;
   char buff[32];
   int count;
 
-  if (index < 10)
+  if (sdi->index < 10)
     {
-      buff[0] = addr;
-      buff[1] = method;
-      buff[2] = use_crc ? 'C' : index ? index + '0' : '!';
-      buff[3] = use_crc ? (index ? index + '0' : '!') : '\0';
-      buff[4] = (use_crc && index) ? '!' : '\0';
+      buff[0] = sdi->addr;
+      buff[1] = sdi->method;
+      buff[2] = sdi->use_crc ? 'C' : sdi->index ? sdi->index + '0' : '!';
+      buff[3] = sdi->use_crc ? (sdi->index ? sdi->index + '0' : '!') : '\0';
+      buff[4] = (sdi->use_crc && sdi->index) ? '!' : '\0';
       buff[5] = '\0';
 
-      count = transaction (buff, sizeof(buff));
+      count = transaction (buff, strlen (buff), sizeof(buff));
       if (count > 6) // we need at least the delay and the number of meas'ments
         {
           buff[count - 2] = '\0';
-          measurements = atoi (&buff[4]);
+          measurements = (uint8_t) atoi (&buff[4]);
           buff[4] = '\0';
           response_delay = atoi (&buff[1]);
           result = true;
@@ -442,9 +326,10 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
               res = tty_->read (buff, sizeof(buff));
             }
           while (--response_delay > 0 && res == 0);
+
           if (res > 0 && addr == buff[0])
             {
-              last_sdi_time_ = os::rtos::sysclock.now ();
+              last_sdi_time_ = sysclock.now ();
               last_sdi_addr_ = addr;
             }
           result = true;
@@ -463,148 +348,81 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
 
 /**
  * @brief Implementation of the "Send Data" command.
- * @param addr: sensor's address.
- * @param method: method used, can be either "D" or "R".
- * @param index: initial index; for "D" normally 0, for "R" can be 0 to 9.
- * @param use_crc: true if CRC is requested, false otherwise.
+ * @param sdi: a asdi12_t type structure defining a sensor.
  * @param data: pointer on an array of floats where the data will be returned.
+ * @param status: pointer on an array of sensor statuses.
  * @param measurements: maximum number of values allowed in 'data'. On return,
  *      it contains the actual number of values returned by the sensor.
  * @return true if successful, false otherwise.
  */
 bool
-sdi12_dr::send_data (char addr, method_t method, uint8_t index, bool use_crc,
-                     float* data, int& measurements)
+sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
+                    uint8_t& measurements)
 {
   bool result = false;
   char buff[SDI12_LONGEST_FRAME];
-  char request = index + '0';
-  int parsed = 0, count;
+  char request = sdi->index + '0';
+  uint8_t parsed = 0;
+  int count;
 
-  do
+  if (data != nullptr && status != nullptr)
     {
-      buff[0] = addr;
-      buff[1] = method;
-      buff[2] = request;
-      buff[3] = '!';
-      buff[4] = '\0';
-      count = transaction (buff, sizeof(buff));
-
-      if (count > 0 && addr == buff[0])
+      // set all status bytes to "missing values"
+      memset (status, STATUS_BIT_MISSING, measurements);
+      do
         {
-          if (use_crc)
+          buff[0] = sdi->addr;
+          buff[1] = sdi->method;
+          buff[2] = request;
+          buff[3] = '!';
+          count = transaction (buff, 4, sizeof(buff));
+
+          if (count > 0 && sdi->addr == buff[0])
             {
-              char* p = buff + count - 5;  // p points on the first CRC byte
-              uint16_t incoming_crc = (*p++ & 0x3F) << 12;
-              incoming_crc += (*p++ & 0x3F) << 6;
-              incoming_crc += (*p & 0x3F);
-              if (incoming_crc
-                  != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
+              if (sdi->use_crc)
+                {
+                  // verify the CRC
+                  char* p = buff + count - 5;  // p points on the first CRC byte
+                  uint16_t incoming_crc = (*p++ & 0x3F) << 12;
+                  incoming_crc += (*p++ & 0x3F) << 6;
+                  incoming_crc += (*p & 0x3F);
+                  if (incoming_crc
+                      != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
+                    {
+                      break;    // invalid CRC
+                    }
+                }
+
+              char *p, *r = buff + 1; // skip address
+              buff[count - (sdi->use_crc ? 5 : 2)] = '\0'; // terminate string
+              do
+                {
+                  p = r;
+                  data[parsed] = strtof (p, &r);
+                  if (data[parsed] == 0 && p == r)
+                    {
+                      break;    // conversion to float error, exit
+                    }
+                  status[parsed] = STATUS_OK;
+                  parsed++;
+                }
+              while (*r != '\0' && parsed < measurements);
+
+              if (sdi->method == sdi12_dr::continuous)
                 {
                   break;
                 }
             }
+        }
+      while (request++ < '9' && count > 0 && parsed < measurements);
 
-          char *p, *r = buff + 1; // skip address
-          buff[count - (use_crc ? 5 : 2)] = '\0'; // terminate string
-          do
-            {
-              p = r;
-              data[parsed] = strtof (p, &r);
-              if (data[parsed] == 0 && p == r)
-                {
-                  break;    // no conversion possible, exit
-                }
-              parsed++;
-            }
-          while (*r != '\0' && parsed < measurements);
-
-          if (method == sdi12_dr::continuous)
-            {
-              break;
-            }
+      // any values retrieved?
+      if (parsed)
+        {
+          measurements = parsed;
+          result = true;
         }
     }
-  while (request++ < '9' && count > 0 && parsed < measurements);
-
-  if (parsed)
-    {
-      measurements = parsed;
-      result = true;
-    }
-
-  return result;
-}
-
-/**
- * @brief Perform an SDI-12 transaction using the RS-485 tty.
- * @param buff: buffer containing the SDI-12 request, "!" terminated; on return,
- *      the buffer should contain the SDI-12 answer from the sensor.
- * @param buff_len: buffer's length.
- * @return: Number of characters returned. In case of errors -1 will be returned.
- */
-int
-sdi12_dr::transaction (char* buff, size_t buff_len)
-{
-  int result = 0;
-  int retries_with_break = 3;
-  char response[SDI12_LONGEST_FRAME];
-
-  do
-    {
-      // check if we need to send a break
-      if (last_sdi_addr_ != buff[0]
-          || (os::rtos::sysclock.now () - last_sdi_time_) > 80)
-        {
-          // send a break at least 12 ms long
-          tty_->tcsendbreak (SDI_BREAK_LEN);
-        }
-      last_sdi_addr_ = buff[0];     // replace last address
-
-      // wait at least 8.33 ms
-      rtos::sysclock.sleep_for (10);
-
-      int retries = 3;
-      bool valid_sdi12 = false;
-      do
-        {
-          // send request
-          if ((result = tty_->write (buff, strlen (buff))) < 0)
-            {
-              break;
-            }
-          // wait for the end of transmission
-          rtos::sysclock.sleep_for ((83 * strlen (buff)) / 10);
-          last_sdi_time_ = os::rtos::sysclock.now ();
-
-          // read response, if any
-          result = tty_->read (response, sizeof(response));
-
-          // check if the frame is valid
-          if (result > 0 && response[result - 1] == '\n'
-              && response[result - 2] == '\r')
-            {
-              valid_sdi12 = true;
-            }
-        }
-      while (valid_sdi12 == false && --retries);
-
-      if (valid_sdi12)
-        {
-          strncpy (buff, response, buff_len);
-          last_sdi_time_ = os::rtos::sysclock.now ();
-          break;
-        }
-      else
-        {
-          // wait a little before a break and new triplet sequence
-          rtos::sysclock.sleep_for (10);
-
-          // force a break, even if the timeout did not expire
-          last_sdi_time_ = 0;
-        }
-    }
-  while (--retries_with_break);
 
   return result;
 }
@@ -639,7 +457,66 @@ sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
   return initial;
 }
 
-#if MAX_CONCURRENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS > 0
+/**
+ * @brief Sample asynchronously a sensor; this function does not block. After the
+ *      data is collected, a user call-back function will be called.
+ * @param dacqh: pointer on a structure of type dacq_handle_t containing all
+ *      sensor relevant data.
+ * @return true if successful, false otherwise.
+ */
+bool
+sdi12_dr::retrieve_concurrent (dacq_handle_t* dacqh)
+{
+  bool result = false;
+  int waiting_time;
+  uint8_t measurements;
+  concurent_msg_t* pmsg = nullptr;
+  sdi12_t* sdi = (sdi12_t *) dacqh->impl;
+
+  for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+      if (msgs_[i].sdih.addr == static_cast<sdi12_t*> (dacqh->impl)->addr)
+        {
+          // this sensor is already in a transaction, abort
+          return result;
+        }
+    }
+
+  // search for a free entry in the table
+  for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+      if (msgs_[i].sdih.addr == 0)
+        {
+          pmsg = &msgs_[i];
+          break;    // found
+        }
+    }
+
+  if (pmsg)
+    {
+      // initiate a concurrent measurement
+      if (start_measurement (sdi, waiting_time, measurements) == true)
+        {
+          // copy sensor data to the table
+          memcpy (&pmsg->dh, dacqh, sizeof(dacq_handle_t));
+          memcpy (&pmsg->sdih, sdi, sizeof(sdi12_t));
+
+          // update the entry with ETA and number of expected values
+          pmsg->response_delay = sysclock.now () + waiting_time * 1000;
+          pmsg->dh.data_count = std::min (dacqh->data_count, measurements);
+
+          // inform the collect task that a new entry is available
+          if (sem_.post () == result::ok)
+            {
+              result = true;
+            }
+        }
+    }
+
+  return result;
+}
+
 /**
  * @brief Thread to handle asynchronous sensor data sampling.
  * @param args: pointer on the class ("this").
@@ -648,38 +525,46 @@ void*
 sdi12_dr::collect (void* args)
 {
   sdi12_dr* self = static_cast<sdi12_dr*> (args);
-  rtos::semaphore_counting* sem = &self->sem_;
+  semaphore_counting* sem = &self->sem_;
   concurent_msg_t* pmsg = nullptr;
-  rtos::result_t result;
-  rtos::clock::duration_t timeout = 0xFFFFFFFF; // forever
+  result_t result;
+  clock::duration_t timeout = 0xFFFFFFFF; // forever
 
   memset (self->msgs_, 0, MAX_CONCURRENT_REQUESTS * sizeof(concurent_msg_t));
 
   while (true)
     {
       result = sem->timed_wait (timeout);
-      if (result != rtos::result::ok)
+      if (result != result::ok)
         {
-          // if timeout, at least one sensor is now ready, let's get its data
+          // if timeout, the first sensor in line is now ready
           if (pmsg != nullptr)
             {
               self->mutex_.lock ();
-              if (self->send_data (pmsg->addr, (method_t) 'D', 0, pmsg->use_crc,
-                                   pmsg->data, pmsg->measurements) == true)
+
+              // get sensor data
+              pmsg->sdih.method = (method_t) 'D';
+              if (self->get_data (&pmsg->sdih, pmsg->dh.data, pmsg->dh.status,
+                                  pmsg->dh.data_count) == true)
                 {
-                  pmsg->cb (pmsg->addr, pmsg->data, pmsg->measurements);
+                  pmsg->dh.impl = &pmsg->sdih;  // update sensor handle
+                  if (pmsg->dh.cb != nullptr)
+                    {
+                      pmsg->dh.cb (&pmsg->dh);  // user callback
+                    }
                 }
-              pmsg->addr = 0;   // clear entry
+              pmsg->sdih.addr = 0;
+              pmsg = nullptr;       // all done here, clear entry
               self->mutex_.unlock ();
             }
         }
-      // else, we have a new entry from the main thread
-      // search for the next sensor (if any) to be ready to deliver its data
-      rtos::clock::duration_t nearest_request = 0xFFFFFFFF;
+      // otherwise we might have a new entry from the main thread
+      // search for the next sensor (if any) ready to deliver its data
+      clock::duration_t nearest_request = 0xFFFFFFFF;
       pmsg = nullptr;
       for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
         {
-          if (self->msgs_[i].addr != 0)
+          if (self->msgs_[i].sdih.addr != 0)
             {
               if (self->msgs_[i].response_delay < nearest_request)
                 {
@@ -690,15 +575,18 @@ sdi12_dr::collect (void* args)
         }
 
       // compute the timeout for the next wake-up
-      timeout =
-          pmsg != nullptr ?
-              pmsg->response_delay > os::rtos::sysclock.now () ?
-                  pmsg->response_delay - os::rtos::sysclock.now () : 0
-              : 0xFFFFFFFF;
+      timeout = 0xFFFFFFFF;
+      if (pmsg != nullptr)
+        {
+          timeout =
+              pmsg->response_delay > sysclock.now () ?
+                  pmsg->response_delay - sysclock.now () : 0;
+        }
     }
 
+  // TODO: should we need to kill this task when the dacq object is destroyed?
   return nullptr;
 }
-#endif // MAX_CONCURRENT_REQUESTS != 0
+#endif // MAX_CONCURRENT_REQUESTS > 0
 
 #pragma GCC diagnostic pop
