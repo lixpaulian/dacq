@@ -33,12 +33,9 @@
 #include <unistd.h>
 
 #include <cmsis-plus/rtos/os.h>
-#include <cmsis-plus/diag/trace.h>
 #include <cmsis-plus/posix-io/file-descriptors-manager.h>
-
-#include "uart-drv.h"
+#include <cmsis-plus/diag/trace.h>
 #include "sdi-12-dr.h"
-#include "io.h"
 #include "sysconfig.h"
 #include "sdi-12-dr-test.h"
 
@@ -55,13 +52,13 @@ using namespace os;
 os::posix::file_descriptors_manager descriptors_manager
   { 8 };
 
-#define TX_BUFFER_SIZE 200
-#define RX_BUFFER_SIZE 200
+#define TX_BUFFER_SIZE 100
+#define RX_BUFFER_SIZE 100
 #define SDI_BUFF_SIZE 84
 
 sdi12_uart uart1
   { "uart1", &huart1, nullptr, nullptr, TX_BUFFER_SIZE, RX_BUFFER_SIZE,
-  driver::uart::RS485_MASK | driver::uart::RS485_DE_POLARITY_MASK };
+      driver::uart::RS485_MASK | driver::uart::RS485_DE_POLARITY_MASK };
 
 void
 HAL_UART_TxCpltCallback (UART_HandleTypeDef *huart)
@@ -102,9 +99,9 @@ HAL_UART_ErrorCallback (UART_HandleTypeDef *huart)
 sdi12_dr sdi12dr
   { "/dev/uart1" };
 
-#if MAX_CONCURRENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS > 0
 static bool
-cb_get_data (char addr, float* data, int max_values);
+cb_get_data (dacq::dacq_handle_t* dacqh);
 #endif
 
 /**
@@ -117,26 +114,26 @@ test_sdi12 (void)
   bool result = false;
   char sensor_addr = '0';
 
+  class dacq* dacqp = &sdi12dr;
+
   do
     {
-      // open sdi12 port
-      if (sdi12dr.open () == false)
+      uint8_t version_major, version_minor;
+
+      dacqp->get_version (version_major, version_minor);
+      trace::printf ("SDI-12 driver version: %d.%d\n", version_major,
+                     version_minor);
+
+      // open sdi12 port: 1200 Baud, 7 bits, even parity, 50 ms timeout
+      if (dacqp->open (1200, CS7, PARENB, 50) == false)
         {
           trace::printf ("Could not open sdi12 port\n");
           break;
         }
       trace::printf ("sdi12 port opened\n", sensor_addr);
 
-      // send acknowledge active command (a!)
-      if (sdi12dr.ack_active (sensor_addr) == false)
-        {
-          trace::printf ("Sensor %c not responding\n", sensor_addr);
-          break;
-        }
-      trace::printf ("Sensor %c is active\n", sensor_addr);
-
       // identification command (aI!)
-      if (sdi12dr.send_id (sensor_addr, buff, sizeof(buff)) == false)
+      if (dacqp->get_info (sensor_addr, buff, sizeof(buff)) == false)
         {
           trace::printf ("Failed to get sensor identification\n");
           break;
@@ -144,7 +141,11 @@ test_sdi12 (void)
       trace::printf ("Sensor identification: %s\n", buff);
 
       // change address from 0 to 1 (aAb!)
-      if (sdi12dr.change_address (sensor_addr, '1') == false)
+      buff[0] = sensor_addr;
+      buff[1] = 'A';
+      buff[2] = '1';
+      buff[3] = '!';
+      if (dacqp->transaction (buff, 4, sizeof(buff)) == false)
         {
           trace::printf ("Failed to change sensor's address\n");
           break;
@@ -152,38 +153,65 @@ test_sdi12 (void)
       sensor_addr = '1';
       trace::printf ("Sensor address changed to %c\n", sensor_addr);
 
-      // measure (M/C/R/V with D)
-      int meas;
+      // measure (M with D)
       float data[20];
-      meas = 20;
-      if (sdi12dr.sample_sensor (sensor_addr, sdi12_dr::measure, 0, false,
-                                 data, meas) == false)
+      uint8_t status[20];
+      dacq::dacq_handle_t dacqh;
+      dacqh.data = data;
+      dacqh.status = status;
+      dacqh.data_count = sizeof(data);
+      dacqh.cb = nullptr;
+      dacqh.cb_process = nullptr;
+      sdi12_dr::sdi12_t sdi;
+      dacqh.impl = (void *) &sdi;
+      sdi.addr = sensor_addr;
+      sdi.method = sdi12_dr::measure;
+      sdi.index = 0;
+      sdi.use_crc = false;
+      if (dacqp->retrieve (&dacqh) == false)
         {
           trace::printf ("Error getting data from sensor\n");
           break;
         }
-      trace::printf ("Got %d values from sensor\n", meas);
-      for (int i = 0; i < meas; i++)
+      trace::printf ("Got %d values from sensor\n", dacqh.data_count);
+      for (int i = 0; i < dacqh.data_count; i++)
         {
           trace::printf ("%f, ", data[i]);
         }
       trace::printf ("\n");
 
-#if MAX_CONCURRENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS > 0
       // asynchronous measure (C with D)
-      if (sdi12dr.sample_sensor_async (sensor_addr, 0, false,
-                                 data, meas, cb_get_data) == false)
+      sdi.method = sdi12_dr::concurrent;
+      dacqh.data_count = sizeof(data);
+      dacqh.cb = cb_get_data;
+      if (dacqp->retrieve (&dacqh) == false)
         {
-          trace::printf ("Error getting concurrent data from sensor\n");
+          trace::printf ("Error getting concurrent data from sensor %c\n", sdi.addr);
+          break;
+        }
+
+      // sample now sensor with address A
+      sdi.addr = 'A';
+      sdi.index = 0;
+      sdi.use_crc = true;
+      dacqh.data_count = sizeof(data);
+      if (dacqp->retrieve (&dacqh) == false)
+        {
+          trace::printf ("Error getting concurrent data from sensor %c\n", sdi.addr);
           break;
         }
 
       // wait for the asynchronous measurement to finish
-      rtos::sysclock.sleep_for (4000);
-#endif // MAX_CONCURRENT_REQUESTS != 0
+      rtos::sysclock.sleep_for (5000);
+#endif // MAX_CONCURRENT_REQUESTS > 0
 
       // change address to original address
-      if (sdi12dr.change_address (sensor_addr, '0') == false)
+      buff[0] = sensor_addr;
+      buff[1] = 'A';
+      buff[2] = '0';
+      buff[3] = '!';
+      if (dacqp->transaction (buff, 4, sizeof(buff)) == false)
         {
           trace::printf ("Failed to change sensor's address\n");
           break;
@@ -209,14 +237,15 @@ test_sdi12 (void)
     }
 }
 
-#if MAX_CONCURRENT_REQUESTS != 0
+#if MAX_CONCURRENT_REQUESTS > 0
 static bool
-cb_get_data (char addr, float* data, int max_values)
+cb_get_data (dacq::dacq_handle_t* dacqh)
 {
-  trace::printf ("Got %d values from sensor %c\n", max_values, addr);
-  for (int i = 0; i < max_values; i++)
+  trace::printf ("Got %d values from sensor %c\n", dacqh->data_count,
+                 static_cast<sdi12_dr::sdi12_t*> (dacqh->impl)->addr);
+  for (int i = 0; i < dacqh->data_count; i++)
     {
-      trace::printf ("%f, ", data[i]);
+      trace::printf ("%f (%d), ", dacqh->data[i], dacqh->status[i]);
     }
   trace::printf ("\n");
   return true;
