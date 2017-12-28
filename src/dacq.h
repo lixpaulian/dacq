@@ -114,6 +114,9 @@ private:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
 
+// Following functions might, or might not be supported by all sensors and/or
+// data loggers; derived classes should override them as required.
+
 inline bool
 dacq::change_id (int id, int new_id)
 {
@@ -144,6 +147,8 @@ dacq::get_date (void)
 {
   return 0;
 }
+
+#pragma GCC diagnostic pop
 
 #endif /* (__cplusplus) */
 

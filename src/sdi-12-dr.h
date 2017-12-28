@@ -150,8 +150,6 @@ sdi12_dr::get_version (uint8_t& version_major, uint8_t& version_minor)
 
 // --------------------------------------------------------------------------
 
-#pragma GCC diagnostic pop
-
 #endif /* (__cplusplus) */
 
 #endif /* SDI_12_DR_H_ */
