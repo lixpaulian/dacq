@@ -140,12 +140,9 @@ test_sdi12 (void)
         }
       trace::printf ("Sensor identification: %s\n", buff);
 
-      // change address from 0 to 1 (aAb!)
-      buff[0] = sensor_addr;
-      buff[1] = 'A';
-      buff[2] = '1';
-      buff[3] = '!';
-      if (dacqp->transaction (buff, 4, sizeof(buff)) == false)
+      // change address from 0 to 1
+      int new_addr = '1';
+      if (dacqp->change_id (sensor_addr, new_addr) == false)
         {
           trace::printf ("Failed to change sensor's address\n");
           break;
@@ -161,7 +158,7 @@ test_sdi12 (void)
       dacqh.status = status;
       dacqh.data_count = sizeof(data);
       dacqh.cb = nullptr;
-      dacqh.cb_process = nullptr;
+      dacqh.user_process = nullptr;
       sdi12_dr::sdi12_t sdi;
       dacqh.impl = (void *) &sdi;
       sdi.addr = sensor_addr;
@@ -176,7 +173,7 @@ test_sdi12 (void)
       trace::printf ("Got %d values from sensor\n", dacqh.data_count);
       for (int i = 0; i < dacqh.data_count; i++)
         {
-          trace::printf ("%f, ", data[i]);
+          trace::printf ("%f (%d), ", data[i], status[i]);
         }
       trace::printf ("\n");
 
@@ -207,11 +204,8 @@ test_sdi12 (void)
 #endif // MAX_CONCURRENT_REQUESTS > 0
 
       // change address to original address
-      buff[0] = sensor_addr;
-      buff[1] = 'A';
-      buff[2] = '0';
-      buff[3] = '!';
-      if (dacqp->transaction (buff, 4, sizeof(buff)) == false)
+      new_addr = '0';
+      if (dacqp->change_id (sensor_addr, new_addr) == false)
         {
           trace::printf ("Failed to change sensor's address\n");
           break;
