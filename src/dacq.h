@@ -54,11 +54,11 @@ public:
     time_t date;        // date/time stamp for this data set
     float* data;        // pointer on an array of tags
     uint8_t* status;    // pointer on an array of tag statuses
-    uint8_t data_count; // number of values (tags)
-    void* impl;        // pointer (normally to a struct) implementation specific
-    void* cb_process;   // pointer on a user object that handles the values
+    uint8_t data_count; // number of expected/returned values (tags)
+    void* impl;         // pointer (normally to a struct) implementation specific
+    void* user_process; // optional pointer on a user object to handle data
     bool
-    (*cb) (struct dacq_handle_*);
+    (*cb) (struct dacq_handle_*); // call-back function to call after data is retrieved
   } dacq_handle_t;
 
   bool
@@ -71,14 +71,29 @@ public:
   virtual void
   get_version (uint8_t& version_major, uint8_t& version_minor) = 0;
 
-  virtual int
-  transaction (char* buff, size_t cmd_len, size_t len) = 0;
-
   virtual bool
   get_info (int id, char* ver, size_t len) = 0;
 
   virtual bool
+  transparent (char* xfer_buff, int& len) = 0;
+
+  virtual bool
   retrieve (dacq_handle_t* dacqh) = 0;
+
+  virtual bool
+  change_id (int id, int new_id);
+
+  virtual bool
+  set_acq_interval (uint32_t& interval);
+
+  virtual bool
+  get_acq_interval (uint32_t& interval);
+
+  virtual bool
+  set_date (time_t date);
+
+  virtual time_t
+  get_date (void);
 
   static constexpr uint8_t STATUS_OK = 0;
   static constexpr uint8_t STATUS_BIT_MISSING = 1;
@@ -94,6 +109,41 @@ private:
   const char* name_;
 
 };
+
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+
+inline bool
+dacq::change_id (int id, int new_id)
+{
+  return false;
+}
+
+inline bool
+dacq::set_acq_interval (uint32_t& interval)
+{
+  return false;
+}
+
+inline bool
+dacq::get_acq_interval (uint32_t& interval)
+{
+  interval = 0;
+  return false;
+}
+
+inline bool
+dacq::set_date (time_t date)
+{
+  return false;
+}
+
+inline time_t
+dacq::get_date (void)
+{
+  return 0;
+}
 
 #endif /* (__cplusplus) */
 
