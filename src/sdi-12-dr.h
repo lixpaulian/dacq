@@ -69,16 +69,19 @@ public:
   } sdi12_t;
 
   void
-  get_version (uint8_t& version_major, uint8_t& version_minor);
-
-  int
-  transaction (char* buff, size_t cmd_len, size_t len);
+  get_version (uint8_t& version_major, uint8_t& version_minor) override;
 
   bool
-  get_info (int id, char* info, size_t len);
+  get_info (int id, char* info, size_t len) override;
 
   bool
-  retrieve (dacq_handle_t* dacqh);
+  change_id (int id, int new_id) override;
+
+  bool
+  transparent (char* xfer_buff, int& len) override;
+
+  bool
+  retrieve (dacq_handle_t* dacqh) override;
 
   // --------------------------------------------------------------------
 
@@ -87,6 +90,9 @@ protected:
   // --------------------------------------------------------------------
 
 private:
+
+  int
+  transaction (char* buff, size_t cmd_len, size_t len);
 
   bool
   start_measurement (sdi12_t* sdi, int& response_delay, uint8_t& measurements);
@@ -128,7 +134,7 @@ private:
 
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 0;
-  static constexpr uint8_t VERSION_MINOR = 6;
+  static constexpr uint8_t VERSION_MINOR = 7;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
@@ -143,6 +149,8 @@ sdi12_dr::get_version (uint8_t& version_major, uint8_t& version_minor)
 }
 
 // --------------------------------------------------------------------------
+
+#pragma GCC diagnostic pop
 
 #endif /* (__cplusplus) */
 

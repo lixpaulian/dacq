@@ -61,6 +61,173 @@ sdi12_dr::~sdi12_dr ()
 }
 
 /**
+ * @brief Implementation of the "Send ID" command (sensor information).
+ * @param id: sensor's address.
+ * @param info: buffer where the sensor identification string will be returned.
+ * @param len: length of the buffer; if the ID string is longer than the buffer,
+ *      it will be truncated.
+ * @return true if successful, false otherwise.
+ */
+bool
+sdi12_dr::get_info (int id, char* info, size_t len)
+{
+  bool result = false;
+
+  if (len > 36)
+    {
+      info[0] = id;
+      info[1] = 'I';
+      info[2] = '!';
+
+      mutex_.lock ();
+      if (transaction (info, 3, len) > 0)
+        {
+          if (info[0] == id)
+            {
+              char *p;
+              if ((p = strstr (info, "\r\n")) != nullptr)
+                {
+                  *p = '\0';    // replace cr with a null terminator
+                  memmove (info, info + 1, strlen (info)); // remove address
+                  result = true;
+                }
+            }
+        }
+      mutex_.unlock ();
+    }
+
+  return result;
+}
+
+/**
+ * @brief Change sensor address (id).
+ * @param id: sensor address to change.
+ * @param new_id: new address.
+ * @return true if the address change was successful, false otherwise.
+ */
+bool
+sdi12_dr::change_id (int id, int new_id)
+{
+  bool result = false;
+  char buffer[8];
+
+  buffer[0] = id;
+  buffer[1] = 'A';
+  buffer[2] = new_id;
+  buffer[3] = '!';
+
+  mutex_.lock ();
+  if (transaction (buffer, 4, sizeof(buffer)) > 0)
+    {
+      if (buffer[0] == new_id)
+        {
+          result = true;
+        }
+    }
+  mutex_.unlock ();
+
+  return result;
+}
+
+/**
+ * @brief Execute a transparent command. This function may be used also for the
+ *      extended commands "X".
+ * @param xfer_buff: buffer with command to send (null terminated) and receive
+ *      the answer to/from the sensor.
+ * @param len: buffer length; on return it contains the length of the answer.
+ * @return true if successful, false otherwise.
+ */
+bool
+sdi12_dr::transparent (char* xfer_buff, int& len)
+{
+  bool result = false;
+
+  if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
+    {
+      result = true;
+    }
+
+  return result;
+}
+
+/**
+ * @brief Retrieve data; this function blocks until the sensor returns the data.
+ * @param dacqh: pointer on a structure of type dacq_handle_t containing all
+ *      sensor relevant data.
+ * @return true if successful, false otherwise.
+ */
+bool
+sdi12_dr::retrieve (dacq_handle_t* dacqh)
+{
+  bool result = false;
+  int waiting_time;
+  uint8_t measurements;
+  sdi12_t* sdi = (sdi12_t*) dacqh->impl;
+
+  mutex_.lock ();
+
+  do
+    {
+      if (sdi->method != sdi12_dr::continuous)
+        {
+#if MAX_CONCURRENT_REQUESTS > 0
+          if (sdi->method == sdi12_dr::concurrent)
+            {
+              // we initiate a real concurrent retrieve (SDI-12 command C)
+              if (retrieve_concurrent (dacqh) == false)
+                {
+                  break;
+                }
+            }
+          else
+#endif
+            {
+              // initiate a sequential retrieve
+              if (start_measurement (sdi, waiting_time, measurements) == false)
+                {
+                  break;
+                }
+              // wait for the sensor to send a service request
+              if (wait_for_service_request (sdi->addr, waiting_time) == false)
+                {
+                  break;
+                }
+            }
+        }
+
+#if MAX_CONCURRENT_REQUESTS > 0
+      if (sdi->method != sdi12_dr::concurrent)
+#endif
+        {
+          measurements = std::min (dacqh->data_count, measurements);
+          sdi->method = (method_t) 'D';
+          sdi->index = 0;
+
+          // get data from sensor
+          if (get_data (sdi, dacqh->data, dacqh->status, measurements) == false)
+            {
+              break;
+            }
+          dacqh->data_count = measurements;
+          if (dacqh->cb != nullptr)
+            {
+              dacqh->cb (dacqh);
+            }
+        }
+      result = true;
+    }
+  while (0);
+
+  mutex_.unlock ();
+
+  return result;
+}
+
+// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+
+/**
  * @brief Perform an SDI-12 transaction using the RS-485 tty.
  * @param buff: buffer containing the SDI-12 request; on return, the buffer
  *      should contain the SDI-12 answer from the sensor.
@@ -142,118 +309,6 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 
   return result;
 }
-
-/**
- * @brief Implementation of the "Send ID" command (sensor information).
- * @param id: sensor's address.
- * @param info: buffer where the sensor identification string will be returned.
- * @param len: length of the buffer; if the ID string is longer than the buffer,
- *      it will be truncated.
- * @return true if successful, false otherwise.
- */
-bool
-sdi12_dr::get_info (int id, char* info, size_t len)
-{
-  bool result = false;
-
-  if (len > 36)
-    {
-      info[0] = id;
-      info[1] = 'I';
-      info[2] = '!';
-
-      mutex_.lock ();
-      if (transaction (info, 3, len) > 0)
-        {
-          if (info[0] == id)
-            {
-              char *p;
-              if ((p = strstr (info, "\r\n")) != nullptr)
-                {
-                  *p = '\0';    // replace cr with a null terminator
-                  memmove (info, info + 1, strlen (info)); // remove address
-                  result = true;
-                }
-            }
-        }
-      mutex_.unlock ();
-    }
-
-  return result;
-}
-
-/**
- * @brief Retrieve data; this function blocks until the sensor returns the data.
- * @param dacqh: pointer on a structure of type dacq_handle_t containing all
- *      sensor relevant data.
- * @return true if successful, false otherwise.
- */
-bool
-sdi12_dr::retrieve (dacq_handle_t* dacqh)
-{
-  bool result = false;
-  int waiting_time;
-  uint8_t measurements;
-  sdi12_t* sdi = (sdi12_t*) dacqh->impl;
-
-  mutex_.lock ();
-
-  do
-    {
-      if (sdi->method != sdi12_dr::continuous)
-        {
-#if MAX_CONCURRENT_REQUESTS > 0
-          if (sdi->method == sdi12_dr::concurrent)
-            {
-              // we initiate a real concurrent retrieve (SDI-12 command C)
-              if (retrieve_concurrent (dacqh) == false)
-                {
-                  break;
-                }
-            }
-          else
-#endif
-            {
-              // initiate a sequential retrieve
-              if (start_measurement (sdi, waiting_time, measurements) == false)
-                {
-                  break;
-                }
-              // wait for the sensor to send a service request
-              if (wait_for_service_request (sdi->addr, waiting_time) == false)
-                {
-                  break;
-                }
-            }
-        }
-
-#if MAX_CONCURRENT_REQUESTS > 0
-      if (sdi->method != sdi12_dr::concurrent)
-#endif
-        {
-          measurements = std::min (dacqh->data_count, measurements);
-          sdi->method = (method_t) 'D';
-          sdi->index = 0;
-
-          // get data from sensor
-          if (get_data (sdi, dacqh->data, dacqh->status, measurements) == false)
-            {
-              break;
-            }
-          dacqh->data_count = measurements;
-        }
-      result = true;
-    }
-  while (0);
-
-  mutex_.unlock ();
-
-  return result;
-}
-
-// --------------------------------------------------------------------------
-
-// --------------------------------------------------------------------------
 
 /**
  * @brief Start a two-steps measurement using "M", "C" or "V" SDI-12 commands.
