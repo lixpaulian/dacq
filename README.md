@@ -34,17 +34,26 @@ open (speed_t baudrate, uint32_t c_size, uint32_t parity, uint32_t rec_timeout);
 void
 sdi12_dr::close (void);
 
-// executes an SDI-12 transaction (sends a request and returns the answer)
-int
-transaction (char* buff, size_t cmd_len, size_t len);
-
 // send identification command
 bool
 get_info (int id, char* ver, size_t len);
 
-// sample a sensor command using M/C and D or R SDI-12 commands
+// change sensor address
+bool
+change_id (int id, int new_id);
+
+// sample a sensor command using M/C and D, or R SDI-12 commands
 bool
 retrieve (dacq_handle_t* dacqh);
+
+// executes a transparent SDI-12 transaction (sends a request and returns the answer)
+bool
+transparent (char* xfer_buff, int& len);
+
+// get driver version number
+void
+get_version (uint8_t& version_major, uint8_t& version_minor);
+
 ```
 
 For more details on how to use of these primitives, please see the test files.
