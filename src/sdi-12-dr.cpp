@@ -38,8 +38,6 @@
 
 #include "sdi-12-dr.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wunused-parameter"
 
 /**
  * @brief Constructor.
@@ -658,5 +656,3 @@ sdi12_dr::collect (void* args)
   return nullptr;
 }
 #endif // MAX_CONCURRENT_REQUESTS > 0
-
-#pragma GCC diagnostic pop
