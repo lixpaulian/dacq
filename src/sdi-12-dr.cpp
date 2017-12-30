@@ -79,21 +79,24 @@ sdi12_dr::get_info (int id, char* info, size_t len)
       info[1] = 'I';
       info[2] = '!';
 
-      mutex_.lock ();
-      if (transaction (info, 3, len) > 0)
+      if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
+          == result::ok)
         {
-          if (info[0] == id)
+          if (transaction (info, 3, len) > 0)
             {
-              char *p;
-              if ((p = strstr (info, "\r\n")) != nullptr)
+              if (info[0] == id)
                 {
-                  *p = '\0';    // replace cr with a null terminator
-                  memmove (info, info + 1, strlen (info)); // remove address
-                  result = true;
+                  char *p;
+                  if ((p = strstr (info, "\r\n")) != nullptr)
+                    {
+                      *p = '\0';    // replace cr with a null terminator
+                      memmove (info, info + 1, strlen (info)); // remove address
+                      result = true;
+                    }
                 }
             }
+          mutex_.unlock ();
         }
-      mutex_.unlock ();
     }
 
   return result;
@@ -116,15 +119,18 @@ sdi12_dr::change_id (int id, int new_id)
   buffer[2] = new_id;
   buffer[3] = '!';
 
-  mutex_.lock ();
-  if (transaction (buffer, 4, sizeof(buffer)) > 0)
+  if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
+      == result::ok)
     {
-      if (buffer[0] == new_id)
+      if (transaction (buffer, 4, sizeof(buffer)) > 0)
         {
-          result = true;
+          if (buffer[0] == new_id)
+            {
+              result = true;
+            }
         }
+      mutex_.unlock ();
     }
-  mutex_.unlock ();
 
   return result;
 }
@@ -142,9 +148,14 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
 {
   bool result = false;
 
-  if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
+  if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
+      == result::ok)
     {
-      result = true;
+      if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
+        {
+          result = true;
+        }
+      mutex_.unlock ();
     }
 
   return result;
@@ -164,61 +175,65 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
   uint8_t measurements;
   sdi12_t* sdi = (sdi12_t*) dacqh->impl;
 
-  mutex_.lock ();
-
-  do
+  if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
+      == result::ok)
     {
-      if (sdi->method != sdi12_dr::continuous)
+      do
         {
+          if (sdi->method != sdi12_dr::continuous)
+            {
 #if MAX_CONCURRENT_REQUESTS > 0
-          if (sdi->method == sdi12_dr::concurrent)
-            {
-              // we initiate a real concurrent retrieve (SDI-12 command C)
-              if (retrieve_concurrent (dacqh) == false)
+              if (sdi->method == sdi12_dr::concurrent)
                 {
-                  break;
+                  // we initiate a real concurrent retrieve (SDI-12 command C)
+                  if (retrieve_concurrent (dacqh) == false)
+                    {
+                      break;
+                    }
                 }
-            }
-          else
+              else
 #endif
-            {
-              // initiate a sequential retrieve
-              if (start_measurement (sdi, waiting_time, measurements) == false)
                 {
-                  break;
-                }
-              // wait for the sensor to send a service request
-              if (wait_for_service_request (sdi->addr, waiting_time) == false)
-                {
-                  break;
+                  // initiate a sequential retrieve
+                  if (start_measurement (sdi, waiting_time, measurements)
+                      == false)
+                    {
+                      break;
+                    }
+                  // wait for the sensor to send a service request
+                  if (wait_for_service_request (sdi->addr, waiting_time)
+                      == false)
+                    {
+                      break;
+                    }
                 }
             }
-        }
 
 #if MAX_CONCURRENT_REQUESTS > 0
-      if (sdi->method != sdi12_dr::concurrent)
+          if (sdi->method != sdi12_dr::concurrent)
 #endif
-        {
-          measurements = std::min (dacqh->data_count, measurements);
-          sdi->method = (method_t) 'D';
-          sdi->index = 0;
+            {
+              measurements = std::min (dacqh->data_count, measurements);
+              sdi->method = (method_t) 'D';
+              sdi->index = 0;
 
-          // get data from sensor
-          if (get_data (sdi, dacqh->data, dacqh->status, measurements) == false)
-            {
-              break;
+              // get data from sensor
+              if (get_data (sdi, dacqh->data, dacqh->status, measurements)
+                  == false)
+                {
+                  break;
+                }
+              dacqh->data_count = measurements;
+              if (dacqh->cb != nullptr)
+                {
+                  dacqh->cb (dacqh);
+                }
             }
-          dacqh->data_count = measurements;
-          if (dacqh->cb != nullptr)
-            {
-              dacqh->cb (dacqh);
-            }
+          result = true;
         }
-      result = true;
+      while (0);
+      mutex_.unlock ();
     }
-  while (0);
-
-  mutex_.unlock ();
 
   return result;
 }
