@@ -61,40 +61,101 @@ public:
     (*cb) (struct dacq_handle_*); // call-back function to call after data is retrieved
   } dacq_handle_t;
 
+  /**
+   * @brief Open a DACQ serial port; all parameters as per the definitions
+   *    in termios.h
+   * @param baudrate: baud rate.
+   * @param c_size: character size (CS5, CS6, CS7 or CS8).
+   * @param parity: parity (0 or PARENB | PARODD)
+   * @param rec_timeout: receive timeout, in ms.
+   * @return true if successful, false otherwise.
+   */
   bool
   open (speed_t baudrate, uint32_t c_size, uint32_t parity,
         uint32_t rec_timeout);
 
+  /**
+   * @brief Close the DAQC serial port.
+   */
   void
   close (void);
 
+  /**
+   * @brief Return the driver's version.
+   * @param version_major: major version number.
+   * @param version_minor: minor version number.
+   */
   virtual void
   get_version (uint8_t& version_major, uint8_t& version_minor) = 0;
 
+  /**
+   * @brief Get info about the sensor/logger (version, manufacturer, etc.).
+   * @param id: sensor ID (or address).
+   * @param info: buffer where the information will be returned.
+   * @param len: size of the info buffer.
+   * @return true if successful, false otherwise.
+   */
   virtual bool
-  get_info (int id, char* ver, size_t len) = 0;
+  get_info (int id, char* info, size_t len) = 0;
 
-  virtual bool
-  transparent (char* xfer_buff, int& len) = 0;
-
+  /**
+   * @brief Retrieve data from sensor or data logger.
+   * @param dacqh: pointer to a dacq_handle_t structure (see above).
+   * @return true if successful, false otherwise.
+   */
   virtual bool
   retrieve (dacq_handle_t* dacqh) = 0;
 
+  /**
+   * @brief Execute a transparent operation (request/answer).
+   * @param xfer_buff: buffer containing the request and returning the answer.
+   * @param len: on entry, the buffer length; on exit the answer's length.
+   * @return true if successful, false otherwise.
+   */
+  virtual bool
+  transparent (char* xfer_buff, int& len);
+
+  /**
+   * @brief Change sensor/logger ID (address, etc.).
+   * @param id: current ID.
+   * @param new_id: new ID.
+   * @return true if successful, false otherwise.
+   */
   virtual bool
   change_id (int id, int new_id);
 
+  /**
+   * @brief Set the data acquisition interval (also "sampling interval").
+   * @param interval: reference to the data acquisition interval, in seconds.
+   * @return true if successful, false otherwise.
+   */
   virtual bool
   set_acq_interval (uint32_t& interval);
 
+  /**
+   * @brief Get the sensor's data acquisition interval.
+   * @param interval: reference to the returned data acquisition interval.
+   * @return true if successful, false otherwise.
+   */
   virtual bool
   get_acq_interval (uint32_t& interval);
 
+  /**
+   * @brief Set the internal clock of the sensor/data logger.
+   * @param date: date to be set.
+   * @return true if successful, false otherwise.
+   */
   virtual bool
   set_date (time_t date);
 
+  /**
+   * @brief Get the current clock value of the sensor/logger.
+   * @return the current date.
+   */
   virtual time_t
   get_date (void);
 
+  // sensor status values
   static constexpr uint8_t STATUS_OK = 0;
   static constexpr uint8_t STATUS_BIT_MISSING = 1;
   static constexpr uint8_t STATUS_BIT_IMPLAUSIBILE = 2;
@@ -116,6 +177,12 @@ private:
 
 // Following functions might, or might not be supported by all sensors and/or
 // data loggers; derived classes should override them as required.
+
+inline bool
+dacq::transparent (char* xfer_buff, int& len)
+{
+  return false;
+}
 
 inline bool
 dacq::change_id (int id, int new_id)
