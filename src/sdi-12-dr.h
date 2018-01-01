@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.h
  *
- * Copyright (c) 2017 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -134,13 +134,14 @@ private:
 
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 0;
-  static constexpr uint8_t VERSION_MINOR = 8;
+  static constexpr uint8_t VERSION_MINOR = 9;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
 
   // timeout to wait on an already running SDI-12 transaction (in seconds)
-  static constexpr uint32_t lock_timeout = 10;
+  static constexpr uint32_t lock_timeout = (2 * 1000 * one_ms);
+;
 
 };
 

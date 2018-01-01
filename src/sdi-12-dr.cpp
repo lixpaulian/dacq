@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.cpp
  *
- * Copyright (c) 2017 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -37,7 +37,6 @@
 #include <cmsis-plus/diag/trace.h>
 
 #include "sdi-12-dr.h"
-
 
 /**
  * @brief Constructor.
@@ -77,8 +76,7 @@ sdi12_dr::get_info (int id, char* info, size_t len)
       info[1] = 'I';
       info[2] = '!';
 
-      if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
-          == result::ok)
+      if (mutex_.timed_lock (lock_timeout) == result::ok)
         {
           if (transaction (info, 3, len) > 0)
             {
@@ -117,8 +115,7 @@ sdi12_dr::change_id (int id, int new_id)
   buffer[2] = new_id;
   buffer[3] = '!';
 
-  if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
-      == result::ok)
+  if (mutex_.timed_lock (lock_timeout) == result::ok)
     {
       if (transaction (buffer, 4, sizeof(buffer)) > 0)
         {
@@ -146,8 +143,7 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
 {
   bool result = false;
 
-  if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
-      == result::ok)
+  if (mutex_.timed_lock (lock_timeout) == result::ok)
     {
       if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
         {
@@ -173,8 +169,7 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
   uint8_t measurements;
   sdi12_t* sdi = (sdi12_t*) dacqh->impl;
 
-  if (mutex_.timed_lock (clock_systick::ticks_cast (lock_timeout * 1000000))
-      == result::ok)
+  if (mutex_.timed_lock (lock_timeout) == result::ok)
     {
       do
         {
