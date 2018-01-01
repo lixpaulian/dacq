@@ -1,7 +1,7 @@
 /*
  * dacq.h
  *
- * Copyright (c) 2017 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -165,6 +165,9 @@ protected:
   posix::tty* tty_;
   mutex mutex_
     { "dacq" };
+
+  // define a millisecond based on the scheduler's frequency
+  static constexpr uint32_t one_ms = 1000 / sysclock.frequency_hz;
 
 private:
   const char* name_;
