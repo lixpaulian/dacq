@@ -3,7 +3,7 @@ A class implementing SDI-12 Data Recorder functionality. For more details on the
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 0.9 (1 January 2018)
+* 1.0 (5 January 2018)
 
 ## License
 * MIT
@@ -57,6 +57,16 @@ get_version (uint8_t& version_major, uint8_t& version_minor);
 ```
 
 For more details on how to use of these primitives, please see dacq.h header file and the test files.
+
+Most functions return a boolean, if it is `true`, then the function was successful, otherwise it failed. For more information on why it failed, the caller can use the `error` structure containing the error type and the error text (see below).
+
+```c
+typedef struct err_
+  {
+    int error_number;
+    const char* error_text;
+  } err_t;
+```
 
 ## Configuration
 
