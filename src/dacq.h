@@ -55,11 +55,17 @@ public:
     float* data;        // pointer on an array of tags
     uint8_t* status;    // pointer on an array of tag statuses
     uint8_t data_count; // number of expected/returned values (tags)
-    void* impl;         // pointer (normally to a struct) implementation specific
+    void* impl;         // pointer to a struct, implementation specific
     void* user_process; // optional pointer on a user object to handle data
     bool
-    (*cb) (struct dacq_handle_*); // call-back function to call after data is retrieved
+    (*cb) (struct dacq_handle_*); // user call-back function to handle data
   } dacq_handle_t;
+
+  typedef struct err_
+  {
+    int error_number;
+    const char* error_text;
+  } err_t;
 
   /**
    * @brief Open a DACQ serial port; all parameters as per the definitions
@@ -160,6 +166,13 @@ public:
   static constexpr uint8_t STATUS_BIT_MISSING = 1;
   static constexpr uint8_t STATUS_BIT_IMPLAUSIBILE = 2;
 
+  typedef enum
+  {
+    ok = 0, tty_in_use, tty_open, tty_attr, dacq_busy, last_common
+  } err_common_t;
+
+  err_t* error = &err_common[ok];
+
 protected:
 
   posix::tty* tty_;
@@ -169,11 +182,22 @@ protected:
   // define a millisecond based on the scheduler's frequency
   static constexpr uint32_t one_ms = 1000 / sysclock.frequency_hz;
 
+  // dacq common errors; the order is important, must be the same as the
+  // order in the err_common_t enum.
+  err_t err_common[last_common] =
+    {
+      { ok, "OK" },
+      { tty_in_use, "tty already in use" },
+      { tty_open, "could not open tty" },
+      { tty_attr, "could not set tty attributes" },
+      { dacq_busy, "timeout, dacq system busy" },
+
+    };
+
 private:
   const char* name_;
 
 };
-
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
