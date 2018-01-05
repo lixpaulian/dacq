@@ -56,8 +56,6 @@ get_version (uint8_t& version_major, uint8_t& version_minor);
 
 ```
 
-For more details on how to use of these primitives, please see dacq.h header file and the test files.
-
 Most functions return a boolean, if it is `true`, then the function was successful, otherwise it failed. For more information on why it failed, the caller can use the `error` structure containing the error type and the error text (see below).
 
 ```c
@@ -67,6 +65,8 @@ typedef struct err_
     const char* error_text;
   } err_t;
 ```
+
+For more details on how to use of these primitives, please see dacq.h header file and the test files.
 
 ## Configuration
 
