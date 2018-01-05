@@ -70,16 +70,21 @@ sdi12_dr::get_info (int id, char* info, size_t len)
 {
   bool result = false;
 
+  error = &err_sdi12[unexpected_answer];
+
   if (len > 36)
     {
       info[0] = id;
       info[1] = 'I';
       info[2] = '!';
 
+      error = &err_common[dacq_busy];
       if (mutex_.timed_lock (lock_timeout) == result::ok)
         {
+          error = &err_sdi12[timeout];
           if (transaction (info, 3, len) > 0)
             {
+              error = &err_sdi12[unexpected_answer];
               if (info[0] == id)
                 {
                   char *p;
@@ -88,6 +93,7 @@ sdi12_dr::get_info (int id, char* info, size_t len)
                       *p = '\0';    // replace cr with a null terminator
                       memmove (info, info + 1, strlen (info)); // remove address
                       result = true;
+                      error = &err_common[ok];
                     }
                 }
             }
@@ -115,13 +121,17 @@ sdi12_dr::change_id (int id, int new_id)
   buffer[2] = new_id;
   buffer[3] = '!';
 
+  error = &err_common[dacq_busy];
   if (mutex_.timed_lock (lock_timeout) == result::ok)
     {
+      error = &err_sdi12[timeout];
       if (transaction (buffer, 4, sizeof(buffer)) > 0)
         {
+          error = &err_sdi12[unexpected_answer];
           if (buffer[0] == new_id)
             {
               result = true;
+              error = &err_common[ok];
             }
         }
       mutex_.unlock ();
@@ -143,11 +153,14 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
 {
   bool result = false;
 
+  error = &err_common[dacq_busy];
   if (mutex_.timed_lock (lock_timeout) == result::ok)
     {
+      error = &err_sdi12[timeout];
       if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
         {
           result = true;
+          error = &err_common[ok];
         }
       mutex_.unlock ();
     }
@@ -156,7 +169,7 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
 }
 
 /**
- * @brief Retrieve data; this function blocks until the sensor returns the data.
+ * @brief Retrieve data.
  * @param dacqh: pointer on a structure of type dacq_handle_t containing all
  *      sensor relevant data.
  * @return true if successful, false otherwise.
@@ -227,6 +240,10 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
       while (0);
       mutex_.unlock ();
     }
+  else
+    {
+      error = &err_common[dacq_busy];
+    }
 
   return result;
 }
@@ -241,7 +258,7 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
  *      should contain the SDI-12 answer from the sensor.
  * @param cmd_len: command length.
  * @param len: buffer's total length.
- * @return: Number of characters returned. In case of errors -1 will be returned.
+ * @return: Number of characters returned, or -1 on error.
  */
 int
 sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
@@ -333,6 +350,7 @@ sdi12_dr::start_measurement (sdi12_t* sdi, int& response_delay,
   char buff[32];
   int count;
 
+  error = &err_sdi12[invalid_index];
   if (sdi->index < 10)
     {
       buff[0] = sdi->addr;
@@ -350,6 +368,11 @@ sdi12_dr::start_measurement (sdi12_t* sdi, int& response_delay,
           buff[4] = '\0';
           response_delay = atoi (&buff[1]);
           result = true;
+          error = &err_common[ok];
+        }
+      else
+        {
+          error = &err_sdi12[timeout];
         }
     }
 
@@ -373,6 +396,7 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
   size_t res;
   struct termios tio;
 
+  error = &err_common[tty_attr];
   if (tty_->tcgetattr (&tio) >= 0)
     {
       // save original values
@@ -395,14 +419,14 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
               last_sdi_time_ = sysclock.now ();
               last_sdi_addr_ = addr;
             }
-          result = true;
-        }
 
-      tio.c_cc[VTIME] = vtime; // restore original timeout values
-      tio.c_cc[VTIME_MS] = vtime_ms;
-      if (tty_->tcsetattr (TCSANOW, &tio) < 0)
-        {
-          result = false;
+          tio.c_cc[VTIME] = vtime; // restore original timeout values
+          tio.c_cc[VTIME_MS] = vtime_ms;
+          if (tty_->tcsetattr (TCSANOW, &tio) == 0)
+            {
+              error = &err_common[ok];
+              result = true;
+            }
         }
     }
 
@@ -410,7 +434,7 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
 }
 
 /**
- * @brief Implementation of the "Send Data" command.
+ * @brief Implementation of the SDI-12 "Send Data" command.
  * @param sdi: a asdi12_t type structure defining a sensor.
  * @param data: pointer on an array of floats where the data will be returned.
  * @param status: pointer on an array of sensor statuses.
@@ -428,6 +452,7 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
   uint8_t parsed = 0;
   int count;
 
+  error = &err_sdi12[no_sensor_data];
   if (data != nullptr && status != nullptr)
     {
       // set all status bytes to "missing values"
@@ -452,6 +477,7 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
                   if (incoming_crc
                       != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
                     {
+                      error = &err_sdi12[crc_error];
                       break;    // invalid CRC
                     }
                 }
@@ -464,6 +490,7 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
                   data[parsed] = strtof (p, &r);
                   if (data[parsed] == 0 && p == r)
                     {
+                      error = &err_sdi12[conversion_to_float_error];
                       break;    // conversion to float error, exit
                     }
                   status[parsed] = STATUS_OK;
@@ -484,6 +511,7 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
         {
           measurements = parsed;
           result = true;
+          error = &err_common[ok];
         }
     }
 
@@ -542,6 +570,7 @@ sdi12_dr::retrieve_concurrent (dacq_handle_t* dacqh)
       if (msgs_[i].sdih.addr == static_cast<sdi12_t*> (dacqh->impl)->addr)
         {
           // this sensor is already in a transaction, abort
+          error = &err_sdi12[sensor_busy];
           return result;
         }
     }
@@ -556,6 +585,7 @@ sdi12_dr::retrieve_concurrent (dacq_handle_t* dacqh)
         }
     }
 
+  error = &err_sdi12[too_many_requests];
   if (pmsg)
     {
       // initiate a concurrent measurement
@@ -573,6 +603,7 @@ sdi12_dr::retrieve_concurrent (dacq_handle_t* dacqh)
           if (sem_.post () == result::ok)
             {
               result = true;
+              error = &err_common[ok];
             }
         }
     }
