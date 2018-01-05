@@ -127,7 +127,7 @@ test_sdi12 (void)
       // open sdi12 port: 1200 Baud, 7 bits, even parity, 50 ms timeout
       if (dacqp->open (1200, CS7, PARENB, 50) == false)
         {
-          trace::printf ("Could not open sdi12 port\n");
+          trace::printf ("Serial port: %s\n", dacqp->error->error_text);
           break;
         }
       trace::printf ("sdi12 port opened\n", sensor_addr);
@@ -135,16 +135,17 @@ test_sdi12 (void)
       // identification command (aI!)
       if (dacqp->get_info (sensor_addr, buff, sizeof(buff)) == false)
         {
-          trace::printf ("Failed to get sensor identification\n");
+          trace::printf ("Get sensor ID: %\n", dacqp->error->error_text);
           break;
         }
-      trace::printf ("Sensor identification: %s\n", buff);
+      trace::printf ("Sensor ID: %s\n", buff);
 
       // change address from 0 to 1
       int new_addr = '1';
       if (dacqp->change_id (sensor_addr, new_addr) == false)
         {
-          trace::printf ("Failed to change sensor's address\n");
+          trace::printf ("Address change failed: %s\n",
+                         dacqp->error->error_text);
           break;
         }
       sensor_addr = '1';
@@ -167,13 +168,14 @@ test_sdi12 (void)
       sdi.use_crc = false;
       if (dacqp->retrieve (&dacqh) == false)
         {
-          trace::printf ("Error getting data from sensor\n");
+          trace::printf ("Error getting data from sensor: %s\n",
+                         dacqp->error->error_text);
           break;
         }
       trace::printf ("Got %d values from sensor\n", dacqh.data_count);
       for (int i = 0; i < dacqh.data_count; i++)
         {
-          trace::printf ("%f (%d), ", data[i], status[i]);
+          trace::printf ("%f[%d] ", data[i], status[i]);
         }
       trace::printf ("\n");
 
@@ -184,7 +186,8 @@ test_sdi12 (void)
       dacqh.cb = cb_get_data;
       if (dacqp->retrieve (&dacqh) == false)
         {
-          trace::printf ("Error getting concurrent data from sensor %c\n", sdi.addr);
+          trace::printf ("Error getting concurrent data from sensor %c: %s\n",
+                         sdi.addr, dacqp->error->error_text);
           break;
         }
 
@@ -195,31 +198,33 @@ test_sdi12 (void)
       dacqh.data_count = sizeof(data);
       if (dacqp->retrieve (&dacqh) == false)
         {
-          trace::printf ("Error getting concurrent data from sensor %c\n", sdi.addr);
+          trace::printf ("Error getting concurrent data from sensor %c: %s\n",
+                         sdi.addr, dacqp->error->error_text);
           break;
         }
 
       // wait for the asynchronous measurement to finish
-      rtos::sysclock.sleep_for (5000);
+      rtos::sysclock.sleep_for (5000 * 1000 / sysclock.frequency_hz);
 #endif // MAX_CONCURRENT_REQUESTS > 0
 
       // change address to original address
       new_addr = '0';
       if (dacqp->change_id (sensor_addr, new_addr) == false)
         {
-          trace::printf ("Failed to change sensor's address\n");
+          trace::printf ("Address change failed: %s\n",
+                         dacqp->error->error_text);
           break;
         }
       sensor_addr = '0';
       trace::printf ("Sensor address changed back to %c\n", sensor_addr);
 
+      // close sdi12 port
+      sdi12dr.close ();
+      trace::printf ("sdi12 port closed\n", sensor_addr);
+
       result = true;
     }
   while (0);
-
-  // close sdi12 port
-  sdi12dr.close ();
-  trace::printf ("sdi12 port closed\n", sensor_addr);
 
   if (result == false)
     {
@@ -239,7 +244,7 @@ cb_get_data (dacq::dacq_handle_t* dacqh)
                  static_cast<sdi12_dr::sdi12_t*> (dacqh->impl)->addr);
   for (int i = 0; i < dacqh->data_count; i++)
     {
-      trace::printf ("%f (%d), ", dacqh->data[i], dacqh->status[i]);
+      trace::printf ("%f[%d] ", dacqh->data[i], dacqh->status[i]);
     }
   trace::printf ("\n");
   return true;
