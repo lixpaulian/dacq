@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr-test.cpp
  *
- * Copyright (c) 2017 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,6 +27,7 @@
  * Created on: 13 Aug 2017 (LNP)
  */
 
+
 #include <stdio.h>
 #include <stdint.h>
 #include <fcntl.h>
@@ -35,9 +36,10 @@
 #include <cmsis-plus/rtos/os.h>
 #include <cmsis-plus/posix-io/file-descriptors-manager.h>
 #include <cmsis-plus/diag/trace.h>
+
+#include "test-sdi12dr.h"
 #include "sdi-12-dr.h"
 #include "sysconfig.h"
-#include "sdi-12-dr-test.h"
 
 #if SDI12_TEST == true
 
@@ -135,7 +137,7 @@ test_sdi12 (void)
       // identification command (aI!)
       if (dacqp->get_info (sensor_addr, buff, sizeof(buff)) == false)
         {
-          trace::printf ("Get sensor ID: %\n", dacqp->error->error_text);
+          trace::printf ("Get sensor ID: %s\n", dacqp->error->error_text);
           break;
         }
       trace::printf ("Sensor ID: %s\n", buff);

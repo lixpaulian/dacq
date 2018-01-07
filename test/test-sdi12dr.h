@@ -1,7 +1,7 @@
 /*
- * sdi-12-dr-test.h
+ * test-sdi12dr.h
  *
- * Copyright (c) 2017 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,8 +27,8 @@
  * Created on: 13 Aug 2017 (LNP)
  */
 
-#ifndef TEST_SDI_12_DR_TEST_H_
-#define TEST_SDI_12_DR_TEST_H_
+#ifndef TEST_TEST_SDI12DR_H_
+#define TEST_TEST_SDI12DR_H_
 
 #include <cmsis-plus/rtos/os.h>
 #include "sdi-12-uart.h"
@@ -40,4 +40,4 @@ test_sdi12 (void);
 
 #endif /* (__cplusplus) */
 
-#endif /* TEST_SDI_12_DR_TEST_H_ */
+#endif /* TEST_TEST_SDI12DR_H_ */
