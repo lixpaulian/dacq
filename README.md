@@ -76,7 +76,7 @@ Following symbols are used to configure the software:
 
 `MAX_CONCURRENT_REQUESTS` defines the maximum number of concurrent requests (default 10) when using the `retrieve` call in conjunction with the SDI-12 "C" (or "CC") command. It sets the maximum number of sensors that can be retrieved simultaneously. The `retrieve` call returns in this case immediatley after querrying a sensor, and the results are delivered through the provided call-back function after the sensor is ready. Between querry and result, the application is free to issue parallel ("concurrent") querries to other sensors.
 
-Note that this option may significantly increase the RAM usage: 36 bytes of RAM per concurrent request are used. In addition, a separate "SDI-12 collect" thread will be started with its own stack and RAM requirements. The advantage of the asynchronous primitive comes in handy when there are many sensors to querry, as by paralleling the requests, the data retrieval will be done much faster.
+Note that this option may significantly increase the RAM usage: 36 bytes of RAM per concurrent request are used; for 10 concurrent sensor requests that would mean 360 bytes of RAM. In addition, a separate "SDI-12 collect" thread will be started with its own stack and RAM requirements. The advantage of the asynchronous primitive comes in handy when there are many sensors to querry, as by paralleling the requests, the data retrieval will be done much faster.
 
 On systems with reduced RAM, you may want to set `MAX_CONCURRENT_REQUESTS` to 0. All SDI-12 data retrieval commands, including "C" and "CC" (concurrent) can still be issued using the `retrieve` primitive; however, in this case the concurrent command "C" will be sequentially executed.
 
