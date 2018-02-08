@@ -37,7 +37,7 @@
 // we derive own uart class to customize the rs485 DE signal and the
 // send break timing
 
-class sdi12_uart : public os::driver::uart
+class sdi12_uart : public os::driver::stm32f7::uart
 {
 public:
 

@@ -38,6 +38,10 @@
 
 #include "sdi-12-dr.h"
 
+using namespace os;
+using namespace os::rtos;
+
+
 /**
  * @brief Constructor.
  * @param name: the path of an RS-485 tty device (serial port).

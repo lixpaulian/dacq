@@ -34,6 +34,7 @@
 #include <dacq.h>
 
 using namespace os;
+using namespace os::rtos;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"

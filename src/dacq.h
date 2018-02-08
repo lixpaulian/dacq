@@ -37,8 +37,8 @@
 
 #if defined (__cplusplus)
 
-using namespace os;
-using namespace os::rtos;
+//using namespace os;
+//using namespace os::rtos;
 
 class dacq
 {
@@ -175,12 +175,12 @@ public:
 
 protected:
 
-  posix::tty* tty_;
-  mutex mutex_
+  os::posix::tty* tty_;
+  os::rtos::mutex mutex_
     { "dacq" };
 
   // define a millisecond based on the scheduler's frequency
-  static constexpr uint32_t one_ms = 1000 / sysclock.frequency_hz;
+  static constexpr uint32_t one_ms = 1000 / os::rtos::sysclock.frequency_hz;
 
   // dacq common errors; the order is important, must be the same as the
   // order in the err_common_t enum.
