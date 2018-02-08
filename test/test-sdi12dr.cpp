@@ -49,9 +49,11 @@ extern "C"
 }
 
 using namespace os;
+using namespace os::rtos;
+using namespace os::driver::stm32f7;
 
 // Static manager
-os::posix::file_descriptors_manager descriptors_manager
+posix::file_descriptors_manager descriptors_manager
   { 8 };
 
 #define TX_BUFFER_SIZE 100
@@ -60,7 +62,7 @@ os::posix::file_descriptors_manager descriptors_manager
 
 sdi12_uart uart1
   { "uart1", &huart1, nullptr, nullptr, TX_BUFFER_SIZE, RX_BUFFER_SIZE,
-      driver::uart::RS485_MASK | driver::uart::RS485_DE_POLARITY_MASK };
+      uart::RS485_MASK | uart::RS485_DE_POLARITY_MASK };
 
 void
 HAL_UART_TxCpltCallback (UART_HandleTypeDef *huart)
@@ -206,7 +208,7 @@ test_sdi12 (void)
         }
 
       // wait for the asynchronous measurement to finish
-      rtos::sysclock.sleep_for (5000 * 1000 / sysclock.frequency_hz);
+      sysclock.sleep_for (5000 * 1000 / sysclock.frequency_hz);
 #endif // MAX_CONCURRENT_REQUESTS > 0
 
       // change address to original address
