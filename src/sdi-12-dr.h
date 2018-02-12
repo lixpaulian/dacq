@@ -154,7 +154,7 @@ private:
   os::rtos::semaphore_counting sem_
     { "sdi12_dr", 2, 0 };
   os::rtos::thread th_
-    { "sdi12_collect", collect, static_cast<void*> (this) };
+    { "sdi12-collect", collect, static_cast<void*> (this) };
 
 #endif // MAX_CONCURRENT_REQUESTS > 0
 
