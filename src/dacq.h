@@ -37,9 +37,6 @@
 
 #if defined (__cplusplus)
 
-//using namespace os;
-//using namespace os::rtos;
-
 class dacq
 {
 public:

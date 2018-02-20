@@ -41,7 +41,6 @@
 using namespace os;
 using namespace os::rtos;
 
-
 /**
  * @brief Constructor.
  * @param name: the path of an RS-485 tty device (serial port).
@@ -682,7 +681,6 @@ sdi12_dr::collect (void* args)
         }
     }
 
-  // TODO: should we need to kill this task when the dacq object is destroyed?
   return nullptr;
 }
 #endif // MAX_CONCURRENT_REQUESTS > 0
