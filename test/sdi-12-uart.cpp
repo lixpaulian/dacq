@@ -31,25 +31,27 @@
 #include "sdi-12-uart.h"
 
 using namespace os;
+using namespace os::rtos;
+using namespace os::driver::stm32f7;
 
 // implementation of our own sdi12 uart derived class
 
-sdi12_uart::sdi12_uart (const char* name, UART_HandleTypeDef* huart,
+sdi12_uart_impl::sdi12_uart_impl (UART_HandleTypeDef* huart,
                         uint8_t* tx_buff, uint8_t* rx_buff, size_t tx_buff_size,
                         size_t rx_buff_size, uint32_t rs485_params) :
-    uart
-      { name, huart, tx_buff, rx_buff, tx_buff_size, rx_buff_size, rs485_params }
+    uart_impl
+      { huart, tx_buff, rx_buff, tx_buff_size, rx_buff_size, rs485_params }
 {
   trace::printf ("%s() %p\n", __func__, this);
 }
 
-sdi12_uart::~sdi12_uart ()
+sdi12_uart_impl::~sdi12_uart_impl ()
 {
   trace::printf ("%s() %p\n", __func__, this);
 }
 
 int
-sdi12_uart::do_tcsendbreak (int duration)
+sdi12_uart_impl::do_tcsendbreak (int duration)
 {
   GPIO_InitTypeDef GPIO_InitStruct;
 
@@ -73,7 +75,7 @@ sdi12_uart::do_tcsendbreak (int duration)
 }
 
 void
-sdi12_uart::do_rs485_de (bool state)
+sdi12_uart_impl::do_rs485_de (bool state)
 {
   if (rs485_params_)
     {

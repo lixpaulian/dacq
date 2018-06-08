@@ -60,16 +60,20 @@ posix::file_descriptors_manager descriptors_manager
 #define RX_BUFFER_SIZE 100
 #define SDI_BUFF_SIZE 84
 
+// Explicit template instantiation.
+template class posix::tty_implementable<sdi12_uart_impl>;
+using sdi12_uart = posix::tty_implementable<sdi12_uart_impl>;
+
 sdi12_uart uart1
-  { "uart1", &huart1, nullptr, nullptr, TX_BUFFER_SIZE, RX_BUFFER_SIZE,
-      uart::RS485_MASK | uart::RS485_DE_POLARITY_MASK };
+  { "uart1", &huart1, nullptr, nullptr, (size_t) TX_BUFFER_SIZE, (size_t) RX_BUFFER_SIZE,
+      (uint32_t) (uart_impl::RS485_MASK | uart_impl::RS485_DE_POLARITY_MASK) };
 
 void
 HAL_UART_TxCpltCallback (UART_HandleTypeDef *huart)
 {
   if (huart->Instance == huart1.Instance)
     {
-      uart1.cb_tx_event ();
+      uart1.impl().cb_tx_event ();
     }
 }
 
@@ -78,7 +82,7 @@ HAL_UART_RxCpltCallback (UART_HandleTypeDef *huart)
 {
   if (huart->Instance == huart1.Instance)
     {
-      uart1.cb_rx_event (false);
+      uart1.impl().cb_rx_event (false);
     }
 }
 
@@ -87,7 +91,7 @@ HAL_UART_RxHalfCpltCallback (UART_HandleTypeDef *huart)
 {
   if (huart->Instance == huart1.Instance)
     {
-      uart1.cb_rx_event (true);
+      uart1.impl().cb_rx_event (true);
     }
 }
 
@@ -96,7 +100,7 @@ HAL_UART_ErrorCallback (UART_HandleTypeDef *huart)
 {
   if (huart->Instance == huart1.Instance)
     {
-      uart1.cb_rx_event (false);
+      uart1.impl().cb_rx_event (false);
     }
 }
 
@@ -163,7 +167,7 @@ test_sdi12 (void)
       dacqh.status = status;
       dacqh.data_count = sizeof(data);
       dacqh.cb = nullptr;
-      dacqh.user_process = nullptr;
+      dacqh.cb_parameter = nullptr;
       sdi12_dr::sdi12_t sdi;
       dacqh.impl = (void *) &sdi;
       sdi.addr = sensor_addr;
