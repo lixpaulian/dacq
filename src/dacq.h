@@ -53,7 +53,7 @@ public:
     uint8_t* status;    // pointer on an array of tag statuses
     uint8_t data_count; // number of expected/returned values (tags)
     void* impl;         // pointer to a struct, implementation specific
-    void* user_process; // optional pointer on a user object to handle data
+    void* cb_parameter; // pointer on a parameter for the user call-back
     bool
     (*cb) (struct dacq_handle_*); // user call-back function to handle data
   } dacq_handle_t;
