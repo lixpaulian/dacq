@@ -55,7 +55,7 @@ public:
     void* impl;         // pointer to a struct, implementation specific
     void* cb_parameter; // pointer on a parameter for the user call-back
     bool
-    (*cb) (struct dacq_handle_*); // user call-back function to handle data
+    (*cb) (void *);     // user call-back function to handle data
   } dacq_handle_t;
 
   typedef struct err_
@@ -158,6 +158,14 @@ public:
   virtual time_t
   get_date (void);
 
+  /**
+   * @brief Abort a retrieve operation.
+   * @return true if successful, false otherwise.
+   */
+  virtual bool
+  abort (void);
+
+
   // sensor status values
   static constexpr uint8_t STATUS_OK = 0;
   static constexpr uint8_t STATUS_BIT_MISSING = 1;
@@ -237,6 +245,12 @@ inline time_t
 dacq::get_date (void)
 {
   return 0;
+}
+
+inline bool
+dacq::abort (void)
+{
+  return true;
 }
 
 #pragma GCC diagnostic pop
