@@ -109,7 +109,7 @@ sdi12_dr sdi12dr
 
 #if MAX_CONCURRENT_REQUESTS > 0
 static bool
-cb_get_data (dacq::dacq_handle_t* dacqh);
+cb_get_data (void* param);
 #endif
 
 /**
@@ -246,8 +246,10 @@ test_sdi12 (void)
 
 #if MAX_CONCURRENT_REQUESTS > 0
 static bool
-cb_get_data (dacq::dacq_handle_t* dacqh)
+cb_get_data (void* param)
 {
+  dacq::dacq_handle_t* dacqh = (dacq::dacq_handle_t*) param;
+
   trace::printf ("Got %d values from sensor %c\n", dacqh->data_count,
                  static_cast<sdi12_dr::sdi12_t*> (dacqh->impl)->addr);
   for (int i = 0; i < dacqh->data_count; i++)
