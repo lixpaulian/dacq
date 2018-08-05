@@ -53,9 +53,9 @@ public:
     uint8_t* status;    // pointer on an array of tag statuses
     uint8_t data_count; // number of expected/returned values (tags)
     void* impl;         // pointer to a struct, implementation specific
-    void* cb_parameter; // pointer on a parameter for the user call-back
     bool
     (*cb) (void *);     // user call-back function to handle data
+    void* cb_parameter; // pointer on a custom parameter for the call-back
   } dacq_handle_t;
 
   typedef struct err_
@@ -82,6 +82,13 @@ public:
    */
   void
   close (void);
+
+  /**
+   * @brief Check if an operation is under way i.e. if the system is busy.
+   * @return true if busy, false otherwise.
+   */
+  bool
+  is_busy (void);
 
   /**
    * @brief Return the driver's version.
@@ -165,7 +172,6 @@ public:
   virtual bool
   abort (void);
 
-
   // sensor status values
   static constexpr uint8_t STATUS_OK = 0;
   static constexpr uint8_t STATUS_BIT_MISSING = 1;
@@ -203,6 +209,20 @@ private:
   const char* name_;
 
 };
+
+inline bool
+dacq::is_busy (void)
+{
+  bool result = true;
+
+  if (mutex_.try_lock () == ok)
+    {
+      mutex_.unlock ();
+      result = false;
+    }
+
+  return result;
+}
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
