@@ -182,7 +182,7 @@ public:
     ok = 0, tty_in_use, tty_open, tty_attr, dacq_busy, last_common
   } err_common_t;
 
-  err_t* error = &err_common[ok];
+  const err_t* error = &err_common[ok];
 
 protected:
 
@@ -213,15 +213,7 @@ private:
 inline bool
 dacq::is_busy (void)
 {
-  bool result = true;
-
-  if (mutex_.try_lock () == ok)
-    {
-      mutex_.unlock ();
-      result = false;
-    }
-
-  return result;
+  return (mutex_.owner () != nullptr);
 }
 
 #pragma GCC diagnostic push
