@@ -291,7 +291,7 @@ dacq::get_date (void)
 inline bool
 dacq::abort (void)
 {
-  return true;
+  return false;
 }
 
 #pragma GCC diagnostic pop
