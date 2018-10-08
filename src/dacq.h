@@ -34,6 +34,7 @@
 #include <cmsis-plus/posix/termios.h>
 
 #include "uart-drv.h"
+#include "dacq-config.h"
 
 #if defined (__cplusplus)
 
@@ -57,12 +58,6 @@ public:
     (*cb) (void *);     // user call-back function to handle data
     void* cb_parameter; // pointer on a custom parameter for the call-back
   } dacq_handle_t;
-
-  typedef struct err_
-  {
-    int error_number;
-    const char* error_text;
-  } err_t;
 
   /**
    * @brief Open a DACQ serial port; all parameters as per the definitions
@@ -179,29 +174,63 @@ public:
 
   typedef enum
   {
-    ok = 0, tty_in_use, tty_open, tty_attr, dacq_busy, last_common
-  } err_common_t;
+    ok = 0,
+    tty_in_use,
+    tty_open,
+    tty_attr,
+    dacq_busy,
 
-  const err_t* error = &err_common[ok];
+    //
+    timeout,
+    unexpected_answer,
+    sensor_busy,
+    too_many_requests,
+    invalid_index,
+    crc_error,
+    conversion_to_float_error,
+    no_sensor_data,
+
+    //
+    last
+
+  } err_num_t;
+
+  typedef struct err_
+  {
+    err_num_t error_number;
+    const char* error_text;
+  } err_t;
+
+  const err_t* error = &err_[ok];
 
 protected:
 
   os::posix::tty* tty_;
   os::rtos::mutex mutex_
-    { "dacq" };
+    { "dacq_mx" };
 
   // define a millisecond based on the scheduler's frequency
   static constexpr uint32_t one_ms = 1000 / os::rtos::sysclock.frequency_hz;
 
   // dacq common errors; the order is important, must be the same as the
   // order in the err_common_t enum.
-  err_t err_common[last_common] =
+  err_t err_[last] =
     {
       { ok, "OK" },
       { tty_in_use, "tty already in use" },
       { tty_open, "could not open tty" },
       { tty_attr, "could not set tty attributes" },
       { dacq_busy, "timeout, dacq system busy" },
+
+      //
+      { timeout, "sensor timed out" },
+      { unexpected_answer, "unexpected answer" },
+      { sensor_busy, "sensor busy" },
+      { too_many_requests, "too many concurrent requests" },
+      { invalid_index, "invalid index" },
+      { crc_error, "crc error" },
+      { conversion_to_float_error, "conversion to float error" },
+      { no_sensor_data, "no valid data from sensor" },
 
     };
 

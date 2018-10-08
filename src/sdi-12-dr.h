@@ -83,38 +83,9 @@ public:
   bool
   retrieve (dacq_handle_t* dacqh) override;
 
-  typedef enum
-  {
-    timeout = 0,
-    unexpected_answer,
-    sensor_busy,
-    too_many_requests,
-    invalid_index,
-    crc_error,
-    conversion_to_float_error,
-    no_sensor_data,
-    sdi12_last
-  } err_sdi12_t;
-
   // --------------------------------------------------------------------
 
 protected:
-
-  // sdi-12-dr specific errors; the order is important, must be the same as the
-  // order in the err_sdi12_t enum.
-
-  err_t err_sdi12[sdi12_last] =
-    {
-      { timeout, "sensor timed out" },
-      { unexpected_answer, "unexpected answer" },
-      { sensor_busy, "sensor busy" },
-      { too_many_requests, "too many concurrent requests" },
-      { invalid_index, "invalid index" },
-      { crc_error, "crc error" },
-      { conversion_to_float_error, "conversion to float error" },
-      { no_sensor_data, "no valid data from sensor" },
-
-    };
 
   // --------------------------------------------------------------------
 
@@ -163,7 +134,7 @@ private:
 
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 1;
-  static constexpr uint8_t VERSION_MINOR = 0;
+  static constexpr uint8_t VERSION_MINOR = 1;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;

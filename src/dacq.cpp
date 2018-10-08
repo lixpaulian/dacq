@@ -68,26 +68,27 @@ dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
                    uint32_t rec_timeout)
 {
   bool result = false;
+  dacq::err_num_t err_no;
 
   do
     {
       if (tty_)
         {
-          error = &err_common[tty_in_use];
+          err_no = tty_in_use;
           break;        // already in use
         }
 
       tty_ = static_cast<os::posix::tty*> (os::posix::open (name_, 0));
       if (tty_ == nullptr)
         {
-          error = &err_common[tty_open];
+          err_no = tty_open;
           break;
         }
 
       struct termios tio;
       if (tty_->tcgetattr (&tio) < 0)
         {
-          error = &err_common[tty_attr];
+          err_no = tty_attr;
           break;
         }
       tio.c_cc[VTIME] = (rec_timeout / 100) & 0xFF;
@@ -100,14 +101,16 @@ dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
 
       if (tty_->tcsetattr (TCSANOW, &tio) < 0)
         {
-          error = &err_common[tty_attr];
+          err_no = tty_attr;
           break;
         }
 
-      error = &err_common[ok];
+      err_no = ok;
       result = true;
     }
   while (0);
+
+  error = &err_[err_no];
 
   return result;
 }
@@ -120,6 +123,6 @@ dacq::close (void)
 {
   tty_->close ();
   tty_ = nullptr;
-  error = &err_common[ok];
+  error = &err_[ok];
 }
 
