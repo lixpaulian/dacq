@@ -163,6 +163,7 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
       err_no = timeout;
       if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
         {
+          xfer_buff[len] = '\0';
           result = true;
           err_no = ok;
         }
