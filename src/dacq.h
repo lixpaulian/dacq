@@ -189,6 +189,7 @@ public:
     crc_error,
     conversion_to_float_error,
     no_sensor_data,
+    set_time_error,
 
     //
     last
