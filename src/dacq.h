@@ -135,7 +135,7 @@ public:
    * @return true if successful, false otherwise.
    */
   virtual bool
-  set_acq_interval (uint32_t& interval);
+  set_acq_interval (int interval);
 
   /**
    * @brief Get the sensor's data acquisition interval.
@@ -143,7 +143,7 @@ public:
    * @return true if successful, false otherwise.
    */
   virtual bool
-  get_acq_interval (uint32_t& interval);
+  get_acq_interval (int& interval);
 
   /**
    * @brief Set the internal clock of the sensor/data logger.
@@ -174,11 +174,7 @@ public:
 
   typedef enum
   {
-    ok = 0,
-    tty_in_use,
-    tty_open,
-    tty_attr,
-    dacq_busy,
+    ok = 0, tty_in_use, tty_open, tty_attr, dacq_busy,
 
     //
     timeout,
@@ -190,6 +186,9 @@ public:
     conversion_to_float_error,
     no_sensor_data,
     set_time_error,
+    buffer_too_small,
+    set_acq_interval_failed,
+    initialisation_required,
 
     //
     last
@@ -223,7 +222,6 @@ protected:
       { tty_attr, "could not set tty attributes" },
       { dacq_busy, "timeout, dacq system busy" },
 
-      //
       { timeout, "sensor timed out" },
       { unexpected_answer, "unexpected answer" },
       { sensor_busy, "sensor busy" },
@@ -232,6 +230,10 @@ protected:
       { crc_error, "crc error" },
       { conversion_to_float_error, "conversion to float error" },
       { no_sensor_data, "no valid data from sensor" },
+      { set_time_error, "failed to set date/time on sensor/logger" },
+      { buffer_too_small, "return buffer too small" },
+      { set_acq_interval_failed, "failed to set the acquisition interval" },
+      { initialisation_required, "sensor/logger requires initialisation" },
 
     };
 
@@ -265,13 +267,13 @@ dacq::change_id (int id, int new_id)
 }
 
 inline bool
-dacq::set_acq_interval (uint32_t& interval)
+dacq::set_acq_interval (int interval)
 {
   return false;
 }
 
 inline bool
-dacq::get_acq_interval (uint32_t& interval)
+dacq::get_acq_interval (int& interval)
 {
   interval = 0;
   return false;
