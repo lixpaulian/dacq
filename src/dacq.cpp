@@ -123,6 +123,5 @@ dacq::close (void)
 {
   tty_->close ();
   tty_ = nullptr;
-  error = &err_[ok];
 }
 
