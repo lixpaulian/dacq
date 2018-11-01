@@ -3,7 +3,7 @@ A class implementing SDI-12 Data Recorder functionality. For more details on the
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 1.0 (5 January 2018)
+* 1.1 (1 November 2018)
 
 ## License
 * MIT
@@ -23,7 +23,7 @@ Please note that a massive API change was done between versions 0.5 and 0.6 and 
 
 The sdi-12-dr class implements several primitives that may be used to resolve all the commands described in the SDI-12 specification, version 1.3 (the new commands introduced in the more recent 1.4 SDI-12 specification are not supported).
 
-Following primitives are available:
+The generic `dacq` class defines following primitives (a specific class, and the sdi-12-dr is no exception, might implement only a subset of these):
 
 ```c
 // open a SDI-12 serial port
@@ -32,7 +32,11 @@ open (speed_t baudrate, uint32_t c_size, uint32_t parity, uint32_t rec_timeout);
 
 // close an open SDI-12 serial port
 void
-sdi12_dr::close (void);
+close (void);
+
+// check if an operation is under way, i.e. if the system is busy
+bool
+is_busy (void);
 
 // send identification command
 bool
@@ -50,6 +54,26 @@ retrieve (dacq_handle_t* dacqh);
 bool
 transparent (char* xfer_buff, int& len);
 
+// set the acquisition/sampling interval
+bool
+set_acq_interval (int interval);
+
+// get the current acquisition/sampling interval
+bool
+get_acq_interval (int& interval);
+
+// set the date/time of the sensor/logger
+bool
+set_date (time_t date);
+
+// get the current date of the sensor/logger
+time_t
+get_date (void);
+
+// abort a running operation (e.g. retrieve)
+bool
+abort (void);
+  
 // get driver version number
 void
 get_version (uint8_t& version_major, uint8_t& version_minor);
