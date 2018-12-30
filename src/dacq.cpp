@@ -30,6 +30,7 @@
 #include <inttypes.h>
 #include <cmsis-plus/rtos/os.h>
 #include <cmsis-plus/diag/trace.h>
+#include <cmsis-plus/posix-io/file-descriptors-manager.h>
 
 #include <dacq.h>
 
@@ -65,7 +66,7 @@ dacq::~dacq ()
  */
 bool
 dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
-                   uint32_t rec_timeout)
+            uint32_t rec_timeout)
 {
   bool result = false;
   dacq::err_num_t err_no;
@@ -116,6 +117,41 @@ dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
 }
 
 /**
+ * @brief Provides a direct connection to the DACQ port.
+ * @param fildes: a file descriptor of a stream that will directly
+ *    communicate with the DACQ port.
+ */
+void
+dacq::direct (int fildes)
+{
+  int count;
+  uint8_t buff[512];
+
+  console_ =
+      static_cast<os::posix::tty*> (os::posix::file_descriptors_manager::io (
+          fildes));
+
+  thread th_dacq_rcv
+    { "dacq-receive", dacq_rcv, static_cast<void*> (this) };
+
+  do
+    {
+      if ((count = console_->read (buff, sizeof(buff))) > 0)
+        {
+          if (count == 1 && buff[0] == 0x18) // ctrl-X
+            {
+              break;  // terminate direct command
+            }
+          if (tty_->write (buff, count) < 0)
+            {
+              break;
+            }
+        }
+    }
+  while (count >= 0);
+}
+
+/**
  * @brief Close the tty device.
  */
 void
@@ -125,3 +161,31 @@ dacq::close (void)
   tty_ = nullptr;
 }
 
+//----------------------------------------------------------------------
+
+/**
+ * @brief The thread handling the back channel of the direct connection.
+ * @param args: pointer to the DACQ class.
+ */
+void*
+dacq::dacq_rcv (void* args)
+{
+  int count;
+  uint8_t buff[512];
+
+  dacq* pdacq = (dacq*) args;
+
+  do
+    {
+      if ((count = pdacq->tty_->read (buff, sizeof(buff))) > 0)
+        {
+          if (pdacq->console_->write (buff, count) < 0)
+            {
+              break;
+            }
+        }
+    }
+  while (count >= 0);
+
+  return nullptr;
+}

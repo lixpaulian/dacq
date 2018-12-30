@@ -73,6 +73,14 @@ public:
         uint32_t rec_timeout);
 
   /**
+   * @brief Provides a direct connection to the DACQ port.
+   * @param fildes: a file descriptor of a stream that will directly
+   *    communicate with the DACQ port.
+   */
+  void
+  direct (int fildes);
+
+  /**
    * @brief Close the DAQC serial port.
    */
   void
@@ -206,6 +214,7 @@ public:
 protected:
 
   os::posix::tty* tty_;
+  os::posix::tty* console_;
   os::rtos::mutex mutex_
     { "dacq_mx" };
 
@@ -238,6 +247,10 @@ protected:
     };
 
 private:
+
+  static void*
+  dacq_rcv (void* args);
+
   const char* name_;
 
 };
