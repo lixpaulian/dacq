@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.cpp
  *
- * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2019 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -190,7 +190,7 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
 {
   bool result = false;
   int waiting_time;
-  uint8_t measurements;
+  uint8_t measurements = 0;
   sdi12_t* sdi = (sdi12_t*) dacqh->impl;
 
   if (mutex_.timed_lock (lock_timeout) == result::ok)
@@ -231,14 +231,26 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
 #endif
             {
               measurements = std::min (dacqh->data_count, measurements);
-              sdi->method = (method_t) 'D';
-              sdi->index = 0;
-
-              // get data from sensor
-              if (get_data (sdi, dacqh->data, dacqh->status, measurements)
-                  == false)
+              if (measurements || sdi->method == sdi12_dr::continuous)
                 {
-                  break;
+                  if (sdi->method != sdi12_dr::continuous)
+                    {
+                      sdi->method = sdi12_dr::data;
+                      sdi->index = 0;
+                    }
+
+                  // get sensor data
+                  if (get_data (sdi, dacqh->data, dacqh->status, measurements)
+                      == false)
+                    {
+                      break;
+                    }
+                  error = &err_[ok];
+                  result = true;
+                }
+              else
+                {
+                  error = &err_[no_sensor_data];
                 }
               dacqh->data_count = measurements;
               if (dacqh->cb != nullptr)
@@ -246,8 +258,6 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
                   dacqh->cb (dacqh);
                 }
             }
-          result = true;
-          error = &err_[ok];
         }
       while (0);
       mutex_.unlock ();
@@ -368,7 +378,9 @@ sdi12_dr::start_measurement (sdi12_t* sdi, int& response_delay,
       buff[0] = sdi->addr;
       buff[1] = sdi->method;
       buff[2] = sdi->use_crc ? 'C' : sdi->index ? sdi->index + '0' : '!';
-      buff[3] = sdi->use_crc ? (sdi->index ? sdi->index + '0' : '!') : '\0';
+      buff[3] =
+          sdi->use_crc ?
+              (sdi->index ? sdi->index + '0' : '!') : (sdi->index ? '!' : '\0');
       buff[4] = (sdi->use_crc && sdi->index) ? '!' : '\0';
       buff[5] = '\0';
 
@@ -475,10 +487,18 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
         {
           buff[0] = sdi->addr;
           buff[1] = sdi->method;
-          buff[2] = request;
-          buff[3] = '!';
-          count = transaction (buff, 4, sizeof(buff));
+          buff[2] =
+              (sdi->method == sdi12_dr::continuous && sdi->use_crc) ?
+                  'C' : request;
+          buff[3] =
+              (sdi->method == sdi12_dr::continuous && sdi->use_crc) ?
+                  request : '!';
+          buff[4] =
+              (sdi->method == sdi12_dr::continuous && sdi->use_crc) ?
+                  '!' : '\0';
+          buff[5] = '\0';
 
+          count = transaction (buff, strlen (buff), sizeof(buff));
           if (count > 0 && sdi->addr == buff[0])
             {
               if (sdi->use_crc)
@@ -507,10 +527,9 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
                       err_no = conversion_to_float_error;
                       break;    // conversion to float error, exit
                     }
-                  status[parsed] = STATUS_OK;
-                  parsed++;
+                  status[parsed++] = STATUS_OK;
                 }
-              while (*r != '\0' && parsed < measurements);
+              while (*r != '\0');
 
               if (sdi->method == sdi12_dr::continuous)
                 {
