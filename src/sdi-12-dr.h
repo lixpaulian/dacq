@@ -135,7 +135,7 @@ private:
 
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 1;
-  static constexpr uint8_t VERSION_MINOR = 1;
+  static constexpr uint8_t VERSION_MINOR = 2;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
