@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.h
  *
- * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2019 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -57,7 +57,8 @@ public:
     measure = 'M', //
     concurrent = 'C', //
     continuous = 'R', //
-    verify = 'V'
+    verify = 'V',
+    data = 'D'
   } method_t;
 
   typedef struct sdi12_
@@ -114,18 +115,18 @@ private:
   collect (void* args);
 
   typedef struct concurrent_msg_
-  {
-    dacq_handle_t dh;
-    sdi12_t sdih;
-    os::rtos::clock::timestamp_t response_delay;
-  } concurent_msg_t;
+    {
+      dacq_handle_t dh;
+      sdi12_t sdih;
+      os::rtos::clock::timestamp_t response_delay;
+    }concurent_msg_t;
 
   concurent_msg_t msgs_[MAX_CONCURRENT_REQUESTS];
 
   os::rtos::semaphore_counting sem_
-    { "sdi12_dr", 2, 0 };
+    { "sdi12_dr", 2, 0};
   os::rtos::thread th_
-    { "sdi12-collect", collect, static_cast<void*> (this) };
+    { "sdi12-collect", collect, static_cast<void*> (this)};
 
 #endif // MAX_CONCURRENT_REQUESTS > 0
 
