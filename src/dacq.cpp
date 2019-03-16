@@ -32,7 +32,7 @@
 #include <cmsis-plus/diag/trace.h>
 #include <cmsis-plus/posix-io/file-descriptors-manager.h>
 
-#include <dacq.h>
+#include "dacq.h"
 
 using namespace os;
 using namespace os::rtos;
@@ -138,7 +138,7 @@ dacq::direct (int fildes)
     {
       if ((count = console_->read (buff, sizeof(buff))) > 0)
         {
-          if (count == 1 && buff[0] == 0x18) // ctrl-X
+          if (count <= 3 && buff[0] == 0x18) // ctrl-X
             {
               break;  // terminate direct command
             }
