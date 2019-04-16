@@ -38,6 +38,8 @@
 
 #include "sdi-12-dr.h"
 
+#define SDI_DEBUG false
+
 using namespace os;
 using namespace os::rtos;
 
@@ -296,6 +298,9 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
         {
           // send a break at least 12 ms long
           tty_->tcsendbreak (SDI_BREAK_LEN);
+#if SDI_DEBUG == true
+          trace::printf ("%s(): break\n", __func__);
+#endif
         }
       last_sdi_addr_ = buff[0];     // replace last address
 
@@ -306,11 +311,15 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
       bool valid_sdi12 = false;
       do
         {
+#if SDI_DEBUG == true
+          trace::printf ("%s(): sent %.*s\n", __func__, cmd_len, buff);
+#endif
           // send request
           if ((result = tty_->write (buff, cmd_len)) < 0)
             {
               break;
             }
+
           // wait for the end of transmission
           sysclock.sleep_for ((83 * cmd_len) / 10);
           last_sdi_time_ = sysclock.now ();
@@ -334,6 +343,17 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
               // we read until we get a valid frame or overflow the buffer
             }
           while (valid_sdi12 == false && offset < sizeof(answer));
+
+#if SDI_DEBUG == true
+          if (result > 0)
+            {
+              trace::printf ("%s(): received %.*s\n", __func__, result, answer);
+            }
+          else
+            {
+              trace::printf ("%s(): timeout\n", __func__);
+            }
+#endif
         }
       while (valid_sdi12 == false && --retries);
 
@@ -444,6 +464,17 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
               last_sdi_time_ = sysclock.now ();
               last_sdi_addr_ = addr;
             }
+
+#if SDI_DEBUG == true
+          if (res > 0)
+            {
+              trace::printf ("%s(): received %.*s\n", __func__, res, buff);
+            }
+          else
+            {
+              trace::printf ("%s(): timeout\n", __func__);
+            }
+#endif
 
           tio.c_cc[VTIME] = vtime; // restore original timeout values
           tio.c_cc[VTIME_MS] = vtime_ms;
