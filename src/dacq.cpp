@@ -89,6 +89,7 @@ dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
       struct termios tio;
       if (tty_->tcgetattr (&tio) < 0)
         {
+          dacq::close ();
           err_no = tty_attr;
           break;
         }
@@ -102,6 +103,7 @@ dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
 
       if (tty_->tcsetattr (TCSANOW, &tio) < 0)
         {
+          dacq::close ();
           err_no = tty_attr;
           break;
         }
