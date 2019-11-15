@@ -168,6 +168,7 @@ sdi12_dr::transparent (char* xfer_buff, int& len)
   if (mutex_.timed_lock (lock_timeout) == result::ok)
     {
       err_no = timeout;
+      tty_->tcflush (TCIOFLUSH);
       if ((len = transaction (xfer_buff, strlen (xfer_buff), len)) > 0)
         {
           xfer_buff[len] = '\0';
@@ -199,6 +200,9 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
     {
       do
         {
+          // set default for all status bits to "missing"
+          memset (dacqh->status, STATUS_BIT_MISSING, dacqh->data_count);
+
           if (sdi->method != sdi12_dr::continuous)
             {
 #if MAX_CONCURRENT_REQUESTS > 0
@@ -254,14 +258,15 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
                 {
                   error = &err_[no_sensor_data];
                 }
-              dacqh->data_count = measurements;
-              if (dacqh->cb != nullptr)
-                {
-                  dacqh->cb (dacqh);
-                }
             }
         }
       while (0);
+
+      dacqh->data_count = measurements;
+      if (dacqh->cb != nullptr)
+        {
+          dacqh->cb (dacqh);
+        }
       mutex_.unlock ();
     }
   else
