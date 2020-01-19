@@ -1,7 +1,7 @@
 /*
  * dacq.h
  *
- * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018, 2020 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -55,7 +55,7 @@ public:
     uint8_t data_count; // number of expected/returned values (tags)
     void* impl;         // pointer to a struct, implementation specific
     bool
-    (*cb) (void *);     // user call-back function to handle data
+    (*cb) (void*);     // user call-back function to handle data
     void* cb_parameter; // pointer on a custom parameter for the call-back
   } dacq_handle_t;
 
@@ -97,9 +97,11 @@ public:
    * @brief Return the driver's version.
    * @param version_major: major version number.
    * @param version_minor: minor version number.
+   * @param version_patch: patch version number.
    */
   virtual void
-  get_version (uint8_t& version_major, uint8_t& version_minor) = 0;
+  get_version (uint8_t& version_major, uint8_t& version_minor,
+               uint8_t& version_patch) = 0;
 
   /**
    * @brief Get info about the sensor/logger (version, manufacturer, etc.).
@@ -175,6 +177,22 @@ public:
   virtual bool
   abort (void);
 
+  /**
+   * @brief Set a function to dump transactions with the sensor(s), e.g.
+   *    for protocol debugging.
+   * @param dump_fn: pointer to the function to be called. The function should
+   *    expect as parameter a pointer on the string to be dumped.
+   */
+  virtual void
+  set_dump_fn (void
+  (*dump_fn) (char*));
+
+  /**
+   * @brief Disable dumping sensor transactions.
+   */
+  virtual void
+  unset_dump_fn (void);
+
   // sensor status values
   static constexpr uint8_t STATUS_OK = 0;
   static constexpr uint8_t STATUS_BIT_MISSING = 1;
@@ -217,6 +235,9 @@ protected:
   os::posix::tty* console_;
   os::rtos::mutex mutex_
     { "dacq_mx" };
+  const char* name_;
+  void
+  (*dump_fn_) (char*);
 
   // define a millisecond based on the scheduler's frequency
   static constexpr uint32_t one_ms = 1000 / os::rtos::sysclock.frequency_hz;
@@ -250,8 +271,6 @@ private:
 
   static void*
   dacq_rcv (void* args);
-
-  const char* name_;
 
 };
 
@@ -308,6 +327,19 @@ inline bool
 dacq::abort (void)
 {
   return false;
+}
+
+inline void
+dacq::set_dump_fn (void
+(*dump_fn) (char*))
+{
+  dump_fn_ = dump_fn;
+}
+
+inline void
+dacq::unset_dump_fn (void)
+{
+  dump_fn_ = nullptr;
 }
 
 #pragma GCC diagnostic pop
