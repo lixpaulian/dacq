@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.h
  *
- * Copyright (c) 2017-2019 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2020 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -70,7 +70,8 @@ public:
   } sdi12_t;
 
   void
-  get_version (uint8_t& version_major, uint8_t& version_minor) override;
+  get_version (uint8_t& version_major, uint8_t& version_minor,
+               uint8_t& version_patch) override;
 
   bool
   get_info (int id, char* info, size_t len) override;
@@ -107,6 +108,9 @@ private:
   uint16_t
   calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len);
 
+  void
+  dump (const char* fmt, ...);
+
 #if MAX_CONCURRENT_REQUESTS > 0
   bool
   retrieve_concurrent (dacq_handle_t* dacqh);
@@ -115,27 +119,31 @@ private:
   collect (void* args);
 
   typedef struct concurrent_msg_
-    {
-      dacq_handle_t dh;
-      sdi12_t sdih;
-      os::rtos::clock::timestamp_t response_delay;
-    }concurent_msg_t;
+  {
+    dacq_handle_t dh;
+    sdi12_t sdih;
+    os::rtos::clock::timestamp_t response_delay;
+  } concurent_msg_t;
 
   concurent_msg_t msgs_[MAX_CONCURRENT_REQUESTS];
 
   os::rtos::semaphore_counting sem_
-    { "sdi12_dr", 2, 0};
+    { "sdi12_dr", 2, 0 };
   os::rtos::thread th_
-    { "sdi12-collect", collect, static_cast<void*> (this)};
+    { "sdi12-collect", collect, static_cast<void*> (this) };
 
 #endif // MAX_CONCURRENT_REQUESTS > 0
 
   char last_sdi_addr_ = '?';
   os::rtos::clock::timestamp_t last_sdi_time_ = 0;
 
+  // transaction dump buffer, as the longest frame is 84 chars, it should be enough
+  char dump_buffer_[128];
+
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 1;
-  static constexpr uint8_t VERSION_MINOR = 3;
+  static constexpr uint8_t VERSION_MINOR = 4;
+  static constexpr uint8_t VERSION_PATCH = 0;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
@@ -146,10 +154,12 @@ private:
 };
 
 inline void
-sdi12_dr::get_version (uint8_t& version_major, uint8_t& version_minor)
+sdi12_dr::get_version (uint8_t& version_major, uint8_t& version_minor,
+                       uint8_t& version_patch)
 {
   version_major = VERSION_MAJOR;
   version_minor = VERSION_MINOR;
+  version_patch = VERSION_PATCH;
 }
 
 // --------------------------------------------------------------------------

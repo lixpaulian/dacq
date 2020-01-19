@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.cpp
  *
- * Copyright (c) 2017-2019 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2020 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -91,7 +91,7 @@ sdi12_dr::get_info (int id, char* info, size_t len)
               err_no = unexpected_answer;
               if (info[0] == id)
                 {
-                  char *p;
+                  char* p;
                   if ((p = strstr (info, "\r\n")) != nullptr)
                     {
                       *p = '\0';    // replace cr with a null terminator
@@ -306,6 +306,7 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 #if SDI_DEBUG == true
           trace::printf ("%s(): break\n", __func__);
 #endif
+          dump ("--> break");
         }
       last_sdi_addr_ = buff[0];     // replace last address
 
@@ -319,6 +320,8 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 #if SDI_DEBUG == true
           trace::printf ("%s(): sent %.*s\n", __func__, cmd_len, buff);
 #endif
+          dump ("--> %.*s", cmd_len, buff);
+
           // send request
           if ((result = tty_->write (buff, cmd_len)) < 0)
             {
@@ -349,16 +352,20 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
             }
           while (valid_sdi12 == false && offset < sizeof(answer));
 
-#if SDI_DEBUG == true
           if (result > 0)
             {
+#if SDI_DEBUG == true
               trace::printf ("%s(): received %.*s\n", __func__, result, answer);
+#endif
+              dump ("<-- %.*s", result, answer);
             }
           else
             {
+#if SDI_DEBUG == true
               trace::printf ("%s(): timeout\n", __func__);
-            }
 #endif
+              dump ("<-- timeout");
+            }
         }
       while (valid_sdi12 == false && --retries);
 
@@ -552,7 +559,7 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
                     }
                 }
 
-              char *p, *r = buff + 1; // skip address
+              char* p, * r = buff + 1; // skip address
               buff[count - (sdi->use_crc ? 5 : 2)] = '\0'; // terminate string
               do
                 {
@@ -618,6 +625,26 @@ sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
   return initial;
 }
 
+/**
+ * @brief Dump the transaction dialogue to a hooked-up function (for protocol debug).
+ * @param fmt: formatted string (printf() style).
+ */
+void
+sdi12_dr::dump (const char* fmt, ...)
+{
+  if (dump_fn_)
+    {
+      va_list ap;
+
+      memset (dump_buffer_, 0, sizeof(dump_buffer_));
+      va_start(ap, fmt);
+      vsnprintf (dump_buffer_, sizeof(dump_buffer_), fmt, ap);
+      va_end(ap);
+
+      dump_fn_ (dump_buffer_);
+    }
+}
+
 #if MAX_CONCURRENT_REQUESTS > 0
 /**
  * @brief Sample asynchronously a sensor; this function does not block. After the
@@ -628,60 +655,60 @@ sdi12_dr::calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len)
  */
 bool
 sdi12_dr::retrieve_concurrent (dacq_handle_t* dacqh)
-  {
-    bool result = false;
-    err_num_t err_no;
-    int waiting_time;
-    uint8_t measurements;
-    concurent_msg_t* pmsg = nullptr;
-    sdi12_t* sdi = (sdi12_t *) dacqh->impl;
+{
+  bool result = false;
+  err_num_t err_no;
+  int waiting_time;
+  uint8_t measurements;
+  concurent_msg_t* pmsg = nullptr;
+  sdi12_t* sdi = (sdi12_t*) dacqh->impl;
 
-    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
-      {
-        if (msgs_[i].sdih.addr == static_cast<sdi12_t*> (dacqh->impl)->addr)
-          {
-            // this sensor is already in a transaction, abort
-            err_no = sensor_busy;
-            return result;
-          }
-      }
+  for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+      if (msgs_[i].sdih.addr == static_cast<sdi12_t*> (dacqh->impl)->addr)
+        {
+          // this sensor is already in a transaction, abort
+          err_no = sensor_busy;
+          return result;
+        }
+    }
 
-    // search for a free entry in the table
-    for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
-      {
-        if (msgs_[i].sdih.addr == 0)
-          {
-            pmsg = &msgs_[i];
-            break;    // found
-          }
-      }
+  // search for a free entry in the table
+  for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+    {
+      if (msgs_[i].sdih.addr == 0)
+        {
+          pmsg = &msgs_[i];
+          break;    // found
+        }
+    }
 
-    err_no = too_many_requests;
-    if (pmsg)
-      {
-        // initiate a concurrent measurement
-        if (start_measurement (sdi, waiting_time, measurements) == true)
-          {
-            // copy sensor data to the table
-            memcpy (&pmsg->dh, dacqh, sizeof(dacq_handle_t));
-            memcpy (&pmsg->sdih, sdi, sizeof(sdi12_t));
+  err_no = too_many_requests;
+  if (pmsg)
+    {
+      // initiate a concurrent measurement
+      if (start_measurement (sdi, waiting_time, measurements) == true)
+        {
+          // copy sensor data to the table
+          memcpy (&pmsg->dh, dacqh, sizeof(dacq_handle_t));
+          memcpy (&pmsg->sdih, sdi, sizeof(sdi12_t));
 
-            // update the entry with ETA and number of expected values
-            pmsg->response_delay = sysclock.now () + waiting_time * 1000;
-            pmsg->dh.data_count = std::min (dacqh->data_count, measurements);
+          // update the entry with ETA and number of expected values
+          pmsg->response_delay = sysclock.now () + waiting_time * 1000;
+          pmsg->dh.data_count = std::min (dacqh->data_count, measurements);
 
-            // inform the collect task that a new entry is available
-            if (sem_.post () == result::ok)
-              {
-                result = true;
-                err_no = ok;
-              }
-          }
-      }
-    error = &err_[err_no];
+          // inform the collect task that a new entry is available
+          if (sem_.post () == result::ok)
+            {
+              result = true;
+              err_no = ok;
+            }
+        }
+    }
+  error = &err_[err_no];
 
-    return result;
-  }
+  return result;
+}
 
 /**
  * @brief Thread to handle asynchronous sensor data sampling.
@@ -689,67 +716,67 @@ sdi12_dr::retrieve_concurrent (dacq_handle_t* dacqh)
  */
 void*
 sdi12_dr::collect (void* args)
-  {
-    sdi12_dr* self = static_cast<sdi12_dr*> (args);
-    semaphore_counting* sem = &self->sem_;
-    concurent_msg_t* pmsg = nullptr;
-    result_t result;
-    clock::duration_t timeout = 0xFFFFFFFF; // forever
+{
+  sdi12_dr* self = static_cast<sdi12_dr*> (args);
+  semaphore_counting* sem = &self->sem_;
+  concurent_msg_t* pmsg = nullptr;
+  result_t result;
+  clock::duration_t timeout = 0xFFFFFFFF; // forever
 
-    memset (self->msgs_, 0, MAX_CONCURRENT_REQUESTS * sizeof(concurent_msg_t));
+  memset (self->msgs_, 0, MAX_CONCURRENT_REQUESTS * sizeof(concurent_msg_t));
 
-    while (true)
-      {
-        result = sem->timed_wait (timeout);
-        if (result != result::ok)
-          {
-            // if timeout, the first sensor in line is now ready
-            if (pmsg != nullptr)
-              {
-                self->mutex_.lock ();
+  while (true)
+    {
+      result = sem->timed_wait (timeout);
+      if (result != result::ok)
+        {
+          // if timeout, the first sensor in line is now ready
+          if (pmsg != nullptr)
+            {
+              self->mutex_.lock ();
 
-                // get sensor data
-                pmsg->sdih.method = (method_t) 'D';
-                if (self->get_data (&pmsg->sdih, pmsg->dh.data, pmsg->dh.status,
-                        pmsg->dh.data_count) == true)
-                  {
-                    pmsg->dh.impl = &pmsg->sdih;  // update sensor handle
-                    if (pmsg->dh.cb != nullptr)
-                      {
-                        pmsg->dh.cb (&pmsg->dh);  // user callback
-                      }
-                  }
-                pmsg->sdih.addr = 0;
-                pmsg = nullptr;       // all done here, clear entry
-                self->mutex_.unlock ();
-              }
-          }
-        // otherwise we might have a new entry from the main thread
-        // search for the next sensor (if any) ready to deliver its data
-        clock::duration_t nearest_request = 0xFFFFFFFF;
-        pmsg = nullptr;
-        for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
-          {
-            if (self->msgs_[i].sdih.addr != 0)
-              {
-                if (self->msgs_[i].response_delay < nearest_request)
-                  {
-                    nearest_request = self->msgs_[i].response_delay;
-                    pmsg = &self->msgs_[i];
-                  }
-              }
-          }
+              // get sensor data
+              pmsg->sdih.method = (method_t) 'D';
+              if (self->get_data (&pmsg->sdih, pmsg->dh.data, pmsg->dh.status,
+                                  pmsg->dh.data_count) == true)
+                {
+                  pmsg->dh.impl = &pmsg->sdih;  // update sensor handle
+                  if (pmsg->dh.cb != nullptr)
+                    {
+                      pmsg->dh.cb (&pmsg->dh);  // user callback
+                    }
+                }
+              pmsg->sdih.addr = 0;
+              pmsg = nullptr;       // all done here, clear entry
+              self->mutex_.unlock ();
+            }
+        }
+      // otherwise we might have a new entry from the main thread
+      // search for the next sensor (if any) ready to deliver its data
+      clock::duration_t nearest_request = 0xFFFFFFFF;
+      pmsg = nullptr;
+      for (int i = 0; i < MAX_CONCURRENT_REQUESTS; i++)
+        {
+          if (self->msgs_[i].sdih.addr != 0)
+            {
+              if (self->msgs_[i].response_delay < nearest_request)
+                {
+                  nearest_request = self->msgs_[i].response_delay;
+                  pmsg = &self->msgs_[i];
+                }
+            }
+        }
 
-        // compute the timeout for the next wake-up
-        timeout = 0xFFFFFFFF;
-        if (pmsg != nullptr)
-          {
-            timeout =
-            pmsg->response_delay > sysclock.now () ?
-            pmsg->response_delay - sysclock.now () : 0;
-          }
-      }
+      // compute the timeout for the next wake-up
+      timeout = 0xFFFFFFFF;
+      if (pmsg != nullptr)
+        {
+          timeout =
+              pmsg->response_delay > sysclock.now () ?
+                  pmsg->response_delay - sysclock.now () : 0;
+        }
+    }
 
-    return nullptr;
-  }
+  return nullptr;
+}
 #endif // MAX_CONCURRENT_REQUESTS > 0
