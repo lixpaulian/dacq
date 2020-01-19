@@ -55,7 +55,7 @@ public:
     uint8_t data_count; // number of expected/returned values (tags)
     void* impl;         // pointer to a struct, implementation specific
     bool
-    (*cb) (void*);     // user call-back function to handle data
+    (*cb) (void*);      // user call-back function to handle data
     void* cb_parameter; // pointer on a custom parameter for the call-back
   } dacq_handle_t;
 
@@ -235,7 +235,6 @@ protected:
   os::posix::tty* console_;
   os::rtos::mutex mutex_
     { "dacq_mx" };
-  const char* name_;
   void
   (*dump_fn_) (char*);
 
@@ -271,6 +270,8 @@ private:
 
   static void*
   dacq_rcv (void* args);
+
+  const char* name_;
 
 };
 
