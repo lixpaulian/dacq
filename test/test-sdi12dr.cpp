@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr-test.cpp
  *
- * Copyright (c) 2017, 2018 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018, 2020 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -126,11 +126,11 @@ test_sdi12 (void)
 
   do
     {
-      uint8_t version_major, version_minor;
+      uint8_t version_major, version_minor, version_patch;
 
-      dacqp->get_version (version_major, version_minor);
-      trace::printf ("SDI-12 driver version: %d.%d\n", version_major,
-                     version_minor);
+      dacqp->get_version (version_major, version_minor, version_patch);
+      trace::printf ("SDI-12 driver version: %d.%d.%d\n", version_major,
+                     version_minor, version_patch);
 
       // open sdi12 port: 1200 Baud, 7 bits, even parity, 50 ms timeout
       if (dacqp->open (1200, CS7, PARENB, 50) == false)
