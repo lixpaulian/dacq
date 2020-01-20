@@ -3,7 +3,7 @@ A class implementing SDI-12 Data Recorder functionality. For more details on the
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 1.3 (15 November 2019)
+* 1.4.0 (19 January 2020)
 
 ## License
 * MIT
@@ -30,6 +30,10 @@ The generic `dacq` class defines following primitives (a specific class, and the
 bool
 open (speed_t baudrate, uint32_t c_size, uint32_t parity, uint32_t rec_timeout);
 
+// provides a direct connection to the DACQ port
+void
+direct (int fildes);
+
 // close an open SDI-12 serial port
 void
 close (void);
@@ -38,13 +42,13 @@ close (void);
 bool
 is_busy (void);
 
+// get driver version number
+void
+get_version (uint8_t& version_major, uint8_t& version_minor, uint8_t& version_patch);
+
 // send identification command
 bool
 get_info (int id, char* ver, size_t len);
-
-// change sensor address
-bool
-change_id (int id, int new_id);
 
 // sample a sensor command using M/C and D, or R SDI-12 commands
 bool
@@ -53,6 +57,10 @@ retrieve (dacq_handle_t* dacqh);
 // executes a transparent SDI-12 transaction (sends a request and returns the answer)
 bool
 transparent (char* xfer_buff, int& len);
+
+// change sensor address
+bool
+change_id (int id, int new_id);
 
 // set the acquisition/sampling interval
 bool
@@ -73,10 +81,15 @@ get_date (void);
 // abort a running operation (e.g. retrieve)
 bool
 abort (void);
-  
-// get driver version number
+
+// set a function to dump transactions with the sensor(s), e.g. for protocol debugging.
 void
-get_version (uint8_t& version_major, uint8_t& version_minor);
+set_dump_fn (void (*dump_fn) (char*));
+
+// disable dumping sensor transactions.
+void
+unset_dump_fn (void);
+
 
 ```
 
