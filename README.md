@@ -3,7 +3,7 @@ A class implementing SDI-12 Data Recorder functionality. For more details on the
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 1.4.0 (19 January 2020)
+* 1.4.1 (24 January 2020)
 
 ## License
 * MIT
