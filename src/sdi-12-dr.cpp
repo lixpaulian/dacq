@@ -299,14 +299,14 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
   do
     {
       // check if we need to send a break
-      if (last_sdi_addr_ != buff[0] || (sysclock.now () - last_sdi_time_) > 80)
+      if (last_sdi_addr_ != buff[0] || (sysclock.now () - last_sdi_time_) > 85)
         {
           // send a break at least 12 ms long
+          dump ("--> break");
           tty_->tcsendbreak (SDI_BREAK_LEN);
 #if SDI_DEBUG == true
           trace::printf ("%s(): break\n", __func__);
 #endif
-          dump ("--> break");
         }
       last_sdi_addr_ = buff[0];     // replace last address
 
@@ -320,16 +320,20 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 #if SDI_DEBUG == true
           trace::printf ("%s(): sent %.*s\n", __func__, cmd_len, buff);
 #endif
-          dump ("--> %.*s", cmd_len, buff);
+          // compute time taken by write
+          os::rtos::clock::timestamp_t xmit_end = sysclock.now ()
+              + (83 * cmd_len) / 10;
 
           // send request
           if ((result = tty_->write (buff, cmd_len)) < 0)
             {
+              dump ("--> write failed");
               break;
             }
+          dump ("--> %.*s", cmd_len, buff);
 
           // wait for the end of transmission
-          sysclock.sleep_for ((83 * cmd_len) / 10);
+          sysclock.sleep_until (xmit_end);
           last_sdi_time_ = sysclock.now ();
 
           // read response, if any
@@ -357,7 +361,9 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 #if SDI_DEBUG == true
               trace::printf ("%s(): received %.*s\n", __func__, result, answer);
 #endif
+              os::rtos::clock::timestamp_t wait_end = sysclock.now () + 20;
               dump ("<-- %.*s", result, answer);
+              sysclock.sleep_until (wait_end);
             }
           else
             {
@@ -377,10 +383,7 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
         }
       else
         {
-          // wait a little before a break and new triplet sequence
-          sysclock.sleep_for (10);
-
-          // force a break, even if the timeout did not expire
+          // after three retries, force a break
           last_sdi_time_ = 0;
         }
     }
