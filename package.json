@@ -1,6 +1,6 @@
 {
   "name": "@lix/sdi-12-dr",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "A class implementing SDI-12 Data Recorder functionality",
   "author": {
     "name": "Lix N. Paulian",
