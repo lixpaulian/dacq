@@ -308,13 +308,14 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
           trace::printf ("%s(): break\n", __func__);
 #endif
         }
-      last_sdi_addr_ = buff[0];     // replace last address
+      last_sdi_addr_ = buff[0];         // replace last address
 
       // wait at least 8.33 ms
       sysclock.sleep_for (10);
 
       int retries = 3;
       bool valid_sdi12 = false;
+      tty_->tcflush (TCIOFLUSH);        // clear input
       do
         {
 #if SDI_DEBUG == true
@@ -476,8 +477,15 @@ sdi12_dr::wait_for_service_request (char addr, int response_delay)
 
           if (res > 0 && addr == buff[0])
             {
+              // got a service request
               last_sdi_time_ = sysclock.now ();
               last_sdi_addr_ = addr;
+            }
+          else
+            {
+              // timeout is up, add half a second wait before requesting the data,
+              // for sensors with flawed implementations
+              sysclock.sleep_for (500);
             }
 
 #if SDI_DEBUG == true
@@ -549,16 +557,24 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
             {
               if (sdi->use_crc)
                 {
-                  // verify the CRC
-                  char* p = buff + count - 5;  // p points on the first CRC byte
-                  uint16_t incoming_crc = (*p++ & 0x3F) << 12;
-                  incoming_crc += (*p++ & 0x3F) << 6;
-                  incoming_crc += (*p & 0x3F);
-                  if (incoming_crc
-                      != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
+                  if (count > 5)
+                    {
+                      // verify the CRC
+                      char* p = buff + count - 5; // p points on the first CRC byte
+                      uint16_t incoming_crc = (*p++ & 0x3F) << 12;
+                      incoming_crc += (*p++ & 0x3F) << 6;
+                      incoming_crc += (*p & 0x3F);
+                      if (incoming_crc
+                          != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
+                        {
+                          err_no = crc_error;
+                          break;    // invalid CRC
+                        }
+                    }
+                  else
                     {
                       err_no = crc_error;
-                      break;    // invalid CRC
+                      break;        // invalid CRC
                     }
                 }
 
