@@ -123,9 +123,11 @@ dacq::open (speed_t baudrate, uint32_t c_size, uint32_t parity,
  * @brief Provides a direct connection to the DACQ port.
  * @param fildes: a file descriptor of a stream that will directly
  *    communicate with the DACQ port.
+ * @param timeout: timeout (in seconds) that will force a return if
+ *    no characters are received for the specified period.
  */
 void
-dacq::direct (int fildes)
+dacq::direct (int fildes, int timeout)
 {
   int count;
   uint8_t buff[512];
@@ -134,24 +136,43 @@ dacq::direct (int fildes)
       static_cast<os::posix::tty*> (os::posix::file_descriptors_manager::io (
           fildes));
 
+  // set a timeout on input
+  struct termios tio_save;
+  struct termios tio;
+  console_->tcgetattr (&tio_save);
+  console_->tcgetattr (&tio);
+  tio.c_cc[VTIME] = 100;
+  tio.c_cc[VMIN] = 0;
+  console_->tcsetattr (TCSANOW, &tio);
+
   thread th_dacq_rcv
     { "dacq-receive", dacq_rcv, static_cast<void*> (this) };
 
-  do
+  int timeout_cnt = timeout / 10;
+
+  while (timeout_cnt--)
     {
-      if ((count = console_->read (buff, sizeof(buff))) > 0)
+      while ((count = console_->read (buff, sizeof(buff))) > 0)
         {
+          timeout_cnt = timeout / 20;
           if (count <= 3 && buff[0] == 0x18) // ctrl-X
             {
+              count = -1;
               break;  // terminate direct command
             }
-          if (tty_->write (buff, count) < 0)
+          if ((count = tty_->write (buff, count)) < 0)
             {
               break;
             }
         }
+      if (count < 0)
+        {
+          break;        // tty error, exit
+        }
     }
-  while (count >= 0);
+
+  // restore original termios
+  console_->tcsetattr (TCSANOW, &tio_save);
 }
 
 /**

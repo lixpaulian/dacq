@@ -76,9 +76,11 @@ public:
    * @brief Provides a direct connection to the DACQ port.
    * @param fildes: a file descriptor of a stream that will directly
    *    communicate with the DACQ port.
+   * @param timeout: timeout (in seconds) that will force a return if
+   *    no characters are received for the specified period.
    */
   void
-  direct (int fildes);
+  direct (int fildes, int timeout);
 
   /**
    * @brief Close the DAQC serial port.
