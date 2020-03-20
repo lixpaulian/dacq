@@ -32,7 +32,7 @@ open (speed_t baudrate, uint32_t c_size, uint32_t parity, uint32_t rec_timeout);
 
 // provides a direct connection to the DACQ port
 void
-direct (int fildes);
+direct (int fildes, int timeout);
 
 // close an open SDI-12 serial port
 void
