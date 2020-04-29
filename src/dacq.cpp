@@ -146,7 +146,7 @@ dacq::direct (int fildes, int timeout)
   console_->tcsetattr (TCSANOW, &tio);
 
   thread::attributes attr;
-  attr.th_stack_size_bytes = 1536;
+  attr.th_stack_size_bytes = 2048;
 
   thread th_dacq_rcv
     { "dacq-receive", dacq_rcv, static_cast<void*> (this), attr };
