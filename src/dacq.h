@@ -202,7 +202,7 @@ public:
 
   typedef enum
   {
-    ok = 0, tty_in_use, tty_open, tty_attr, dacq_busy,
+    ok = 0, tty_error, tty_in_use, tty_open, tty_attr, dacq_busy,
 
     //
     timeout,
@@ -210,6 +210,7 @@ public:
     sensor_busy,
     too_many_requests,
     invalid_index,
+    nack_received,
     crc_error,
     conversion_to_float_error,
     no_sensor_data,
@@ -248,6 +249,7 @@ protected:
   err_t err_[last] =
     {
       { ok, "OK" },
+      { tty_error, "tty error" },
       { tty_in_use, "tty already in use" },
       { tty_open, "could not open tty" },
       { tty_attr, "could not set tty attributes" },
@@ -258,6 +260,7 @@ protected:
       { sensor_busy, "sensor busy" },
       { too_many_requests, "too many concurrent requests" },
       { invalid_index, "invalid index" },
+      { nack_received, "got nack response" },
       { crc_error, "crc error" },
       { conversion_to_float_error, "conversion to float error" },
       { no_sensor_data, "no valid data from sensor" },
