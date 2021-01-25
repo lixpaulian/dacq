@@ -1,10 +1,12 @@
 {
-  "name": "@lix/sdi-12-dr",
-  "version": "1.4.2",
-  "description": "A class implementing SDI-12 Data Recorder functionality",
-  "author": {
-    "name": "Lix N. Paulian",
-    "email": "lix@paulian.net"
-  },
-  "license": "MIT"
+	"name": "@lix/sdi-12-dr",
+	"version": "1.4.2",
+	"description": "A class implementing SDI-12 Data Recorder functionality",
+	"author": {
+		"name": "Lix N. Paulian",
+		"email": "lix@paulian.net"
+	},
+	"license": "MIT",
+	"xpack": {
+	}
 }
