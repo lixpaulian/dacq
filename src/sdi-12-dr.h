@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.h
  *
- * Copyright (c) 2017-2020 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2021 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -143,7 +143,7 @@ private:
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 1;
   static constexpr uint8_t VERSION_MINOR = 4;
-  static constexpr uint8_t VERSION_PATCH = 2;
+  static constexpr uint8_t VERSION_PATCH = 3;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
   static constexpr int SDI12_LONGEST_FRAME = 84;
