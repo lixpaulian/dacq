@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.cpp
  *
- * Copyright (c) 2017-2020 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2021 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -107,7 +107,7 @@ sdi12_dr::get_info (int id, char* info, size_t len)
 
   if (result == false)
     {
-      snprintf (info, len, "Sensor unreachable");
+      *info = '\0';
     }
   error = &err_[err_no];
 
