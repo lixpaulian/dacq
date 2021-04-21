@@ -100,13 +100,16 @@ private:
   start_measurement (sdi12_t* sdi, int& response_delay, uint8_t& measurements);
 
   bool
-  wait_for_service_request (char addr, int response_delay);
+  wait_for_service_request (sdi12_t* sdi, int response_delay);
 
   bool
   get_data (sdi12_t* sdi, float* data, uint8_t* status, uint8_t& measurements);
 
   uint16_t
   calc_crc (uint16_t initial, uint8_t* buff, uint16_t buff_len);
+
+  void
+  force_break (void);
 
   void
   dump (const char* fmt, ...);
@@ -136,17 +139,21 @@ private:
 
   char last_sdi_addr_ = '?';
   os::rtos::clock::timestamp_t last_sdi_time_ = 0;
+  os::rtos::clock::timestamp_t origin_;
 
   // transaction dump buffer, as the longest frame is 84 chars, it should be enough
   char dump_buffer_[128];
 
   // driver version
   static constexpr uint8_t VERSION_MAJOR = 1;
-  static constexpr uint8_t VERSION_MINOR = 4;
-  static constexpr uint8_t VERSION_PATCH = 3;
+  static constexpr uint8_t VERSION_MINOR = 5;
+  static constexpr uint8_t VERSION_PATCH = 1;
 
   // max 75 bytes values + 6 bytes address, CRC and CR/LF, word aligned
-  static constexpr int SDI12_LONGEST_FRAME = 84;
+  static constexpr int longest_sdi12_frame = 84;
+
+  // number of retries with break
+  static constexpr int retries_with_break = 3;
 
   // timeout to wait on an already running SDI-12 transaction (in seconds)
   static constexpr uint32_t lock_timeout = (2 * 1000 * one_ms);
@@ -160,6 +167,12 @@ sdi12_dr::get_version (uint8_t& version_major, uint8_t& version_minor,
   version_major = VERSION_MAJOR;
   version_minor = VERSION_MINOR;
   version_patch = VERSION_PATCH;
+}
+
+inline void
+sdi12_dr::force_break (void)
+{
+  last_sdi_time_ = 0;
 }
 
 // --------------------------------------------------------------------------
