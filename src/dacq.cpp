@@ -62,7 +62,12 @@ dacq::~dacq ()
 }
 
 /**
- * @brief Open a tty device and configure it accordingly.
+ * @brief Open a tty device and configure it accordingly. See termios.h for
+ *      how the baudrate, c_size, parity are specified.
+ * @param baudrate: the initial baud rate of the tty device.
+ * @param c_size: number of bits to set on the tty.
+ * @param parity: set the parity for the tty, if any.
+ * @param rec_timeout: receive timeout, in ms.
  * @return true if successful, false otherwise.
  */
 bool
