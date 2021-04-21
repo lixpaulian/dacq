@@ -3,7 +3,7 @@ A class implementing SDI-12 Data Recorder functionality. For more details on the
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 1.4.3 (11 March 2021)
+* 1.5.1 (21 April 2021)
 
 ## License
 * MIT
@@ -115,7 +115,9 @@ Following symbols are used to configure the software:
 
 Note that this option may significantly increase the RAM usage: 36 bytes of RAM per concurrent request are used; for 10 concurrent sensor requests that would mean 360 bytes of RAM. In addition, a separate "SDI-12 collect" thread will be started with its own stack and RAM requirements. The advantage of the asynchronous primitive comes in handy when there are many sensors to querry, as by paralleling the requests, the data retrieval will be done much faster.
 
-On systems with reduced RAM, you may want to set `MAX_CONCURRENT_REQUESTS` to 0. All SDI-12 data retrieval commands, including "C" and "CC" (concurrent) can still be issued using the `retrieve` primitive; however, in this case the concurrent command "C" will be sequentially executed.
+On systems with reduced RAM, you may want to set `MAX_CONCURRENT_REQUESTS` to 0. All SDI-12 data retrieval commands, including "C"/"CC" (concurrent) can still be issued using the `retrieve` primitive; however, in this case the concurrent commands "C"/"CC" will be sequentially executed too.
+
+Note however, if you set `MAX_CONCURRENT_REQUESTS` to 2 or more, all the sensors on the bus must be interrogated with (and support) the "C"/"CC" command. You cannot mix concurrent with non-concurrent requests on the same SDI-12 bus! 
 
 ## Tests
 A test suite exercising most of the SDI-12 commands is included. You need an SDI-12 sensor to run the test; you might also need to adapt the test suite to the actual address of the sensor.
