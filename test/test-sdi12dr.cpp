@@ -45,7 +45,7 @@
 
 extern "C"
 {
-  UART_HandleTypeDef huart1;
+  extern UART_HandleTypeDef huart1;
 }
 
 using namespace os;
