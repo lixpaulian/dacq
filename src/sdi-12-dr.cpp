@@ -347,7 +347,7 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
       // send a break at least 12 ms long
       first = sysclock.now () - origin_;
       tty_->tcsendbreak (SDI_BREAK_LEN);
-      dump ("%04d-%04d --> break", first, first + SDI_BREAK_LEN);
+      dump ("%05d-%05d --> break", first, first + SDI_BREAK_LEN);
 #if SDI_DEBUG == true
           trace::printf ("%s(): break\n", __func__);
 #endif
@@ -370,11 +370,11 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 
       // send request
       first = sysclock.now () - origin_;
-      dump ("%04d-%04d --> %.*s", first, first + ((cmd_len * 8333) / 1000),
+      dump ("%05d-%05d --> %.*s", first, first + ((cmd_len * 8333) / 1000),
             cmd_len, buff);
       if ((result = tty_->write (buff, cmd_len)) < 0)
         {
-          dump ("%04d ~~~~ --> write failed", sysclock.now () - origin_);
+          dump ("%05d-~~~~~ --> write failed", sysclock.now () - origin_);
           err_no = tty_error;
           break;
         }
@@ -384,7 +384,28 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
       last_sdi_time_ = sysclock.now ();
 
       // read response, if any
-      if ((result = tty_->read (answer, sizeof(answer))) > 0)
+      size_t offset = 0;
+      bool valid_sdi12 = false;
+      do
+        {
+          result = tty_->read (answer + offset, sizeof(answer) - offset);
+          if (result <= 0)
+            {
+              break;
+            }
+          offset += result;
+          // check if the frame is valid
+          if (answer[offset - 1] == '\n' && answer[offset - 2] == '\r')
+            {
+              valid_sdi12 = true;
+              result = offset;
+              break;
+            }
+          // we read until we get a valid frame or overflow the buffer
+        }
+      while (offset < sizeof(answer));
+
+      if (valid_sdi12 && result > 0)
         {
 #if SDI_DEBUG == true
               trace::printf ("%s(): received %.*s\n", __func__, result, answer);
@@ -392,7 +413,7 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
           os::rtos::clock::timestamp_t wait_end = sysclock.now () + 20;
           first = sysclock.now () - origin_ - (((result + 1) * 8333) / 1000);
           int last = sysclock.now () - origin_ - 8;
-          dump ("%04d-%04d <-- %.*s", first, last, result, answer);
+          dump ("%05d-%05d <-- %.*s", first, last, result, answer);
           sysclock.sleep_until (wait_end);
           strncpy (buff, answer, len);
           last_sdi_time_ = sysclock.now ();
@@ -404,7 +425,7 @@ sdi12_dr::transaction (char* buff, size_t cmd_len, size_t len)
 #if SDI_DEBUG == true
               trace::printf ("%s(): timeout\n", __func__);
 #endif
-          dump ("~~~~ %04d <-- timeout", sysclock.now () - origin_);
+          dump ("~~~~~-%05d <-- timeout", sysclock.now () - origin_);
         }
     }
   while (--retries);
@@ -444,20 +465,22 @@ sdi12_dr::start_measurement (sdi12_t* sdi, int& response_delay,
           buff[4] = (sdi->use_crc && sdi->index) ? '!' : '\0';
           buff[5] = '\0';
 
-          count = transaction (buff, strlen (buff), sizeof(buff));
-          if (sdi->addr != buff[0] || count < 7)
+          if ((count = transaction (buff, strlen (buff), sizeof(buff))) > 0)
             {
-              // answer from wrong sensor or too short
-              error = &err_[unexpected_answer];
-            }
-          else
-            {
-              buff[count - 2] = '\0';
-              measurements = (uint8_t) atoi (&buff[4]);
-              buff[4] = '\0';
-              response_delay = atoi (&buff[1]);
-              result = true;
-              break;
+              if (sdi->addr != buff[0] || count < 7)
+                {
+                  // answer from wrong sensor or too short
+                  error = &err_[unexpected_answer];
+                }
+              else
+                {
+                  buff[count - 2] = '\0';
+                  measurements = (uint8_t) atoi (&buff[4]);
+                  buff[4] = '\0';
+                  response_delay = atoi (&buff[1]);
+                  result = true;
+                  break;
+                }
             }
           force_break ();
         }
@@ -520,7 +543,7 @@ sdi12_dr::wait_for_service_request (sdi12_t* sdi, int response_delay)
               int first = sysclock.now () - origin_
                   - (((res + 1) * 8333) / 1000);
               int last = sysclock.now () - origin_ - 8;
-              dump ("%04d-%04d --> %.*s", first, last, res, buff);
+              dump ("%05d-%05d --> %.*s", first, last, res, buff);
             }
           else
             {
@@ -572,7 +595,6 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
   char request = sdi->index + '0';
   uint8_t parsed = 0;
   int count;
-  int retries = retries_with_break;
 
   if (data != nullptr && status != nullptr)
     {
@@ -580,6 +602,8 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
       memset (status, STATUS_BIT_MISSING, measurements);
       do
         {
+          int retries = retries_with_break;
+
           do
             {
               buff[0] = sdi->addr;
@@ -595,46 +619,47 @@ sdi12_dr::get_data (sdi12_t* sdi, float* data, uint8_t* status,
                       '!' : '\0';
               buff[5] = '\0';
 
-              count = transaction (buff, strlen (buff), sizeof(buff));
-              do
+              if ((count = transaction (buff, strlen (buff), sizeof(buff))) > 0)
                 {
-                  if (!count || sdi->addr != buff[0]
-                      || (sdi->use_crc && count < 6))
-                    {
-                      error = &err_[unexpected_answer];
-                      break;
-                    }
-                  if (sdi->use_crc)
-                    {
-                      // verify the CRC
-                      char* p = buff + count - 5; // p points on the first CRC byte
-                      uint16_t incoming_crc = (*p++ & 0x3F) << 12;
-                      incoming_crc += (*p++ & 0x3F) << 6;
-                      incoming_crc += (*p & 0x3F);
-                      if (incoming_crc
-                          != sdi12_dr::calc_crc (0, (uint8_t*) buff, count - 5))
-                        {
-                          error = &err_[crc_error];
-                          break;
-                        }
-                    }
-                  char* p, * r = buff + 1; // skip address
-                  buff[count - (sdi->use_crc ? 5 : 2)] = '\0'; // terminate string
                   do
                     {
-                      p = r;
-                      data[parsed] = strtof (p, &r);
-                      if (data[parsed] == 0 && p == r)
+                      if (sdi->addr != buff[0] || (sdi->use_crc && count < 6))
                         {
-                          error = &err_[conversion_to_float_error];
-                          break;    // conversion to float error, exit
+                          error = &err_[unexpected_answer];
+                          break;
                         }
-                      status[parsed++] = STATUS_OK;
+                      if (sdi->use_crc)
+                        {
+                          // verify the CRC
+                          char* p = buff + count - 5; // p points on the first CRC byte
+                          uint16_t incoming_crc = (*p++ & 0x3F) << 12;
+                          incoming_crc += (*p++ & 0x3F) << 6;
+                          incoming_crc += (*p & 0x3F);
+                          if (incoming_crc
+                              != sdi12_dr::calc_crc (0, (uint8_t*) buff,
+                                                     count - 5))
+                            {
+                              error = &err_[crc_error];
+                              break;
+                            }
+                        }
+                      char* p, * r = buff + 1; // skip address
+                      buff[count - (sdi->use_crc ? 5 : 2)] = '\0'; // terminate string
+                      do
+                        {
+                          p = r;
+                          data[parsed] = strtof (p, &r);
+                          if (data[parsed] == 0 && p == r)
+                            {
+                              error = &err_[conversion_to_float_error];
+                              break;    // conversion to float error, exit
+                            }
+                          status[parsed++] = STATUS_OK;
+                        }
+                      while (*r != '\0');
                     }
-                  while (*r != '\0');
+                  while (0);
                 }
-              while (0);
-
               if (error->error_number == ok)
                 {
                   break;
