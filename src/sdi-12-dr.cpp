@@ -543,7 +543,7 @@ sdi12_dr::wait_for_service_request (sdi12_t* sdi, int response_delay)
               int first = sysclock.now () - origin_
                   - (((res + 1) * 8333) / 1000);
               int last = sysclock.now () - origin_ - 8;
-              dump ("%05d-%05d --> %.*s", first, last, res, buff);
+              dump ("%05d-%05d <-- %.*s", first, last, res, buff);
             }
           else
             {
