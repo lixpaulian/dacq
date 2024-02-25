@@ -1,7 +1,7 @@
 /*
  * dacq.h
  *
- * Copyright (c) 2017, 2018, 2020 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018, 2020, 2024 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -56,7 +56,7 @@ public:
     void* impl;         // pointer to a struct, implementation specific
     bool
     (*cb) (void*);      // user call-back function to handle data
-    void* cb_parameter; // pointer on a custom parameter for the call-back
+    void* cb_parameter; // pointer on a custom parameter (eg for the call-back)
   } dacq_handle_t;
 
   /**
@@ -218,6 +218,7 @@ public:
     buffer_too_small,
     set_acq_interval_failed,
     initialisation_required,
+    sensor_too_slow,
 
     //
     last
@@ -268,6 +269,7 @@ protected:
       { buffer_too_small, "return buffer too small" },
       { set_acq_interval_failed, "failed to set the acquisition interval" },
       { initialisation_required, "sensor/logger requires initialisation" },
+      { sensor_too_slow, "sensor needs too much time to measure" },
 
     };
 
