@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr.cpp
  *
- * Copyright (c) 2017-2021 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017-2021, 2024 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -262,6 +262,11 @@ sdi12_dr::retrieve (dacq_handle_t* dacqh)
                       == false)
                     {
                       break;
+                    }
+                  if (sdi->max_waiting > 0 && waiting_time > sdi->max_waiting)
+                    {
+                      error = &err_[sensor_too_slow];
+                      break;    // we don't have time to wait so long
                     }
                   // wait for the sensor to send a service request
                   if (wait_for_service_request (sdi, waiting_time) == false)
