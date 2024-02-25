@@ -1,7 +1,7 @@
 /*
  * sdi-12-dr-test.cpp
  *
- * Copyright (c) 2017, 2018, 2020 Lix N. Paulian (lix@paulian.net)
+ * Copyright (c) 2017, 2018, 2020, 2024 Lix N. Paulian (lix@paulian.net)
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -173,6 +173,7 @@ test_sdi12 (void)
       sdi.addr = sensor_addr;
       sdi.method = sdi12_dr::measure;
       sdi.index = 0;
+      sdi.max_waiting = 0;      // wait indefinitely
       sdi.use_crc = false;
       if (dacqp->retrieve (&dacqh) == false)
         {
