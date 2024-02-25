@@ -3,13 +3,15 @@ A class implementing SDI-12 Data Recorder functionality. For more details on the
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
 ## Version
-* 1.5.3 (May 9, 2021)
+* 1.5.4 (Feb 1, 2024)
 
 ## License
 * MIT
 
 ## Package
-The class is provided as an xPack and can be installed in an Eclipse based project using the attached script (however, the include and source paths must be manually added to the project in Eclipse). For more details on xPacks see https://github.com/xpacks. The installation script requires the helper scripts that can be found at https://github.com/xpacks/scripts.
+The class is provided as an xPack (for more details on xPacks see https://xpack.github.io). It can be installed in an Eclipse based project using either `xpm` or the attached script (however, the include and source paths must be manually added to the project in Eclipse). Of course, it can be installed without using the xPacks tools, either from the repository or manually, but then updating it later might be more difficult.
+
+Note thathe xPacks project evolved with the time. Initially it was based on shell scripts, but the current version is based on a set of utilities, in partcular `xpm` plus a json description file. This project supports both versions, therefore you will still find the `xpacks-helper.sh` script in the `scripts` subdirectory, as well as the `package.json` file for `xpm'. However, the script based version is deprecated and will not be supported in the future.
 
 ## Dependencies
 This software depends on the following packages, available as xPacks:
@@ -19,8 +21,6 @@ This software depends on the following packages, available as xPacks:
 The class has been first developed on an ARM Cortex M7 platform from ST, but it does not depend on a specific microcontroller.
 
 ## API Description
-Please note that a massive API change was done between versions 0.5 and 0.6 and in this process the compatibility was lost. This was necessary for several reasons, but most importantly because the SDI-12 class is now derived from the generic `dacq` class. In the grand scheme of C++ things, the `dacq` class is (and will be) used for other sensor interface/protocol implementations.
-
 The sdi-12-dr class implements several primitives that may be used to resolve all the commands described in the SDI-12 specification, version 1.3 (the new commands introduced in the more recent 1.4 SDI-12 specification are not supported).
 
 The generic `dacq` class defines following primitives (a specific class, and the sdi-12-dr is no exception, might implement only a subset of these):
