@@ -1,17 +1,25 @@
+![GitHub package.json version](https://img.shields.io/github/package-json/v/lixpaulian/dacq)
+![GitHub Tag](https://img.shields.io/github/v/tag/lixpaulian/dacq)
+![GitHub License](https://img.shields.io/github/license/lixpaulian/dacq)
+
 # sdi-12-dr
 A class implementing SDI-12 Data Recorder functionality. For more details on the SDI-12 protocol, visit http://sdi-12.org. Quote from the SDI-12 web site:
 > SDI-12 stands for serial data interface at 1200 baud. It is a standard to interface battery powered data recorders with micro-processor based sensors designed for environmental data acquisition (EDA)."
 
-## Version
-* 1.5.4 (Feb 1, 2024)
-
-## License
-* MIT
-
 ## Package
-The class is provided as an xPack (for more details on xPacks see https://xpack.github.io). It can be installed in an Eclipse based project using either `xpm` or the attached script (however, the include and source paths must be manually added to the project in Eclipse). Of course, it can be installed without using the xPacks tools, either from the repository or manually, but then updating it later might be more difficult.
+The class is provided as an **xPack** (for more details on xPacks see https://xpack.github.io). It can be installed in a project using either `xpm` or the attached script. Of course, it can be installed without using the xPacks tools, either by linking the class as a Git submodule or by copying it in your project, but then updating it later might be more difficult.
 
-Note thathe xPacks project evolved with the time. Initially it was based on shell scripts, but the current version is based on a set of utilities, in partcular `xpm` plus a json description file. This project supports both versions, therefore you will still find the `xpacks-helper.sh` script in the `scripts` subdirectory, as well as the `package.json` file for `xpm`. However, the script based version is deprecated and will not be supported in the future.
+Note that the xPacks project evolved with the time. Initially it was based on shell scripts, but the current version is based on a set of utilities, `xpm` and a JSON description file. You will still find the `xpacks-helper.sh` script in the `scripts` subdirectory, but it is not recommened as it is deprecated and will not be supported in the future. Instead use the procedure described below.
+
+To install the package using `xpm` you must make sure that you have already `nodejs` and `xpm` installed on your computer (see also [xPack install](https://xpack.github.io/install/)). Then, in your project directory issue the commands:
+
+```sh
+cd my-project
+xpm init # Add a package.json if not already present
+xpm install github:lixpaulian/dacq#v1.5.4 --save-dev --copy
+```
+
+Note: Without `--copy`, the default is to create a link to a read-only instance of the package in the `xpm` central store.
 
 ## Dependencies
 This software depends on the following packages, available as xPacks:
